@@ -35,7 +35,12 @@ class DiffusionModel(nn.Module):
         Ndata: number of samples in dataset
         '''
         np.random.seed(seed)
-        states_T = unitary_group.rvs(dim=2**self.n, size=Ndata)[:,:,0]
+        U = unitary_group.rvs(dim=2**self.n, size=Ndata)
+
+        if Ndata == 1:
+            U = U[np.newaxis, :, :]  # force batch axis
+
+        states_T = U[:, :, 0]  # first column
         return torch.from_numpy(states_T).cfloat()
     
     def scrambleCircuit_t(self, t, input, phis, gs=None):
