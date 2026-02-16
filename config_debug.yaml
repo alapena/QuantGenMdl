@@ -10,6 +10,6 @@ dataset:
   dir: 'data' # Directory to store the dataset
   name: 'MNIST0' # 'MNIST', 'MNIST0'
   # customlabel: 'MNIST0' # 'MNIST0', '01'
-  maxsize: 500
+  maxsize: 100
   transforms:
     resize: 1 # nxn pixels to resize.

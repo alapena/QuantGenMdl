@@ -1,6 +1,6 @@
 device: cpu
 model:
-  n_timesteps: 22 # Number of time steps T
+  n_timesteps: 20 # Number of time steps T
   max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
 training:
   batch_size: null # If null, it will be set to the size of the training dataset
@@ -8,7 +8,7 @@ training:
   learning_rate: null
 dataset:
   dir: 'data' # Directory to store the dataset
-  name: 'MNIST' # 'MNIST', 'MNIST0'
-  customlabel: 'MNIST0' # 'MNIST0', '01'
+  name: 'MNIST0' # 'MNIST', 'MNIST0'
+  maxsize: null
   transforms:
     resize: 8 # nxn pixels to resize.
