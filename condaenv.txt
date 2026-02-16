@@ -31,4 +31,4 @@ conda create -n ogQDDPM \
   conda-forge::tensorflow-probability \
   -c pytorch -c conda-forge -y && \
 conda activate ogQDDPM && \
-pip install --no-deps tensorcircuit ott-jax tensornetwork graphviz
+pip install --no-deps tensorcircuit ott-jax tensornetwork graphviz qutip

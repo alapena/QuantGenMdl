@@ -26,12 +26,12 @@ def get_path(config, type='qstates', **kwargs):
     if type == 'initialqstates':
         datasetname = dataset_config['name']
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'initialqstates'
-        filename = f"initialqstates_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}.npy"
+        filename = f"initialqstates_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}.npy"
     
     elif type == 'diffusedqstates':
         datasetname = dataset_config['name']
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'diffusedqstates'
-        filename = f"diffusedqstates_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_T{kwargs['n_timesteps']}.npy"
+        filename = f"diffusedqstates_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
     
     else:
         raise NotImplementedError(f"Path type '{type}' not implemented.")
@@ -42,4 +42,9 @@ def get_path(config, type='qstates', **kwargs):
 def get_n_qubits_from_data(data):
     n_pixels = data.reshape(-1).shape[0]
     n_qubits = np.int(np.ceil(np.log2(n_pixels)))
+    n_qubits = 1 if n_qubits == 0 else n_qubits
     return n_qubits
+
+def find_closest_power_of_2(x, return_power=False):
+    a = 2 if x == 1 else 1<<(x-1).bit_length()
+    return a, int(np.ceil(np.log2(a)))

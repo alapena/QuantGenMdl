@@ -1,5 +1,5 @@
 from src.QDDPM_torch_angel import DiffusionModel
-from src.utils import get_path, set_device, get_n_qubits_from_data
+from src.utils import get_path, set_device, find_closest_power_of_2
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
@@ -14,12 +14,13 @@ def main():
     # Load the states
     n_data = 10 # EDITABLE
     n_pixels = 1 # EDITABLE
+    _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
 
-    dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels) # Editable
+    dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits) # Editable
     dataset = np.load(dir / filename)
 
     # Initialize the model
-    n_qubits, n_timesteps, n_data = get_n_qubits_from_data(dataset[0]), config['model']['n_timesteps'], dataset.shape[0]
+    n_timesteps, n_data = config['model']['n_timesteps'], dataset.shape[0]
     model = DiffusionModel(n_qubits, n_timesteps, n_data)
 
     # Get the diffused states
@@ -30,9 +31,12 @@ def main():
     states[0] = dataset
     for t in tqdm(range(1, n_timesteps+1)):
         states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
+        states[t] = states[t] / np.linalg.norm(states[t], axis=1, keepdims=True) # Avoid numerical errors
 
-    dir, filename = get_path(config, type='diffusedqstates', n_data=n_data, n_pixels=n_pixels, n_timesteps=n_timesteps)
+    dir, filename = get_path(config, type='diffusedqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
     np.save(dir / filename, states)
+
+    print(f"Saved diffused quantum stated in {dir / filename}")
 
 if __name__ == "__main__":
     main()

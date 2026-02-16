@@ -1,4 +1,4 @@
-from src.utils import get_path
+from src.utils import get_path, find_closest_power_of_2
 from torch.utils.data import Subset, DataLoader
 from torchvision import datasets, transforms
 from pathlib import Path
@@ -17,14 +17,17 @@ def main():
     dataset = next(iter(dataset))[0]
 
     # Generate the quantum states corresponding to the dataset
-    dataset = dataset.reshape(dataset.shape[0], -1)
+    dataset = dataset.reshape(dataset.shape[0], -1) # Reshape to [n_data, n_pixels]
     dataset = np.array(dataset, dtype=np.complex64)
-    dataset = dataset / np.linalg.norm(dataset, axis=1, keepdims=True)
-
-    # Save the generated quantum states
+    dataset = dataset / np.linalg.norm(dataset, axis=1, keepdims=True) # Ensure normalization
+    # Fill the rest of the states with zeroes.
     n_data = dataset.shape[0]
     n_pixels = dataset.shape[1]
-    dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels)
+    _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
+    dataset = np.pad(dataset, ((0,0), (0,2**n_qubits-1)), 'constant', constant_values=0)
+
+    # Save the generated quantum states
+    dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits)
     np.save(dir / filename, dataset)
 
     print(f"Dataset saved in {dir / filename}")
