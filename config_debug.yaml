@@ -1,0 +1,15 @@
+device: cpu
+model:
+  n_timesteps: 20 # Number of time steps T
+  max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
+training:
+  batch_size: null # If null, it will be set to the size of the training dataset
+  num_epochs: 101 # Epochs for training each time step
+  learning_rate: null
+dataset:
+  dir: 'data' # Directory to store the dataset
+  name: 'MNIST0' # 'MNIST', 'MNIST0'
+  # customlabel: 'MNIST0' # 'MNIST0', '01'
+  maxsize: 10
+  transforms:
+    resize: 1 # nxn pixels to resize.

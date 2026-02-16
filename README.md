@@ -1,3 +1,9 @@
+# Angel:
+
+Notation:
+N: number of samples in the dataset
+M: number of features in each sample
+
 # QuantGenMdl
 
 This repository contains the official Python implementation of [*Generative Quantum Machine Learning via Denoising Diffusion Probabilistic Models*](https://arxiv.org/abs/2310.05866), an article by [Bingzhi Zhang](https://sites.google.com/view/bingzhi-zhang/home), [Peng Xu](https://francis-hsu.github.io/), [Xiaohui Chen](https://the-xiaohuichen.github.io/), and [Quntao Zhuang](https://sites.usc.edu/zhuang).
