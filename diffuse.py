@@ -12,8 +12,8 @@ def main():
     device = set_device(config.get('device', 'cpu'))
 
     # Load the states
-    n_data = 10 # EDITABLE
-    n_pixels = 1 # EDITABLE
+    n_data = dataset_config['maxsize'] # EDITABLE
+    n_pixels = int(np.sqrt(dataset_config['transforms']['resize'])) # EDITABLE
     _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
 
     dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits) # Editable
