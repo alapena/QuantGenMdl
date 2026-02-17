@@ -97,8 +97,7 @@ def training_timestep_t(model, t, inputs_T, params_tot, n_data, epochs, lr):
 
         loss_hist.append(loss) # record the current loss
         
-        if step % 100 == 0:
-            print(f"Epoch {step}, loss: {loss.item():.4f}, time elapsed: {time.time() - t0:.1f}s")
+        print(f"Epoch {step}, loss: {loss.item():.4f}, time elapsed: {time.time() - t0:.1f}s")
             # pbar.set_postfix({
             #     'loss': f"{loss.item():.4f}", 
             #     'elapsed': f"{time.time() - t0:.1f}s"

@@ -7,7 +7,7 @@ model:
   seed: 0 # The seed for the HaarSampleGeneration
 training:
   batch_size: null # If null, it will be set to the size of the training dataset
-  n_epochs: 5001 # Epochs for training each time step
+  n_epochs: 2001 # Epochs for training each time step
   learning_rate: 0.0005
 dataset:
   dir: 'data' # Directory to store the dataset
