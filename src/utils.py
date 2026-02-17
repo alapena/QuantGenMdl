@@ -38,6 +38,16 @@ def get_path(config, type='qstates', **kwargs):
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'wassdist'
         filename = f"wassdist_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
 
+    elif type == 'modelparams':
+        datasetname = dataset_config['name']
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / 'modelresults'
+        filename = f"params_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}_t{kwargs['t']}.npy"
+    
+    elif type == 'modellosshist':
+        datasetname = dataset_config['name']
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / 'modelresults'
+        filename = f"losshist_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}_t{kwargs['t']}.npy"
+
     else:
         raise NotImplementedError(f"Path type '{type}' not implemented.")
     

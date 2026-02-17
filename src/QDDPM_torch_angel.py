@@ -147,7 +147,7 @@ class QDDPM(nn.Module):
         '''
         m_probs = (torch.abs(inputs.reshape(inputs.shape[0], 2**self.na, 2**self.n))**2).sum(dim=2)
         m_res = torch.multinomial(m_probs, num_samples=1).squeeze() # measurment results
-        indices = 2**self.n * m_res.view(-1, 1) + torch.arange(2**self.n)
+        indices = 2**self.n * m_res.view(-1, 1) + torch.arange(2**self.n, device=self.device)
         post_state = torch.gather(inputs, 1, indices)
         norms = torch.sqrt(torch.sum(torch.abs(post_state)**2, axis=1)).unsqueeze(dim=1)
         return 1./norms * post_state
@@ -171,9 +171,8 @@ class QDDPM(nn.Module):
         inputs_T: the input state at the beginning of backward
         params_tot: all circuit parameters till step t+1
         '''
-        self.input_tplus1 = torch.zeros((Ndata, 2**self.n_tot)).cfloat()
+        self.input_tplus1 = torch.zeros((Ndata, 2**self.n_tot), device=self.device).cfloat()
         self.input_tplus1[:,:2**self.n] = inputs_T
-        params_tot = torch.from_numpy(params_tot).to(self.device).float()
         with torch.no_grad():
             for tt in range(self.T-1, t, -1):
                 self.input_tplus1[:,:2**self.n] = self.backwardOutput_t(self.input_tplus1, params_tot[tt])

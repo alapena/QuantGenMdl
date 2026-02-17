@@ -2,14 +2,16 @@ device: cpu
 model:
   n_timesteps: 20 # Number of time steps T
   max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
+  n_backward_layers: 4 # L
+  n_ancilla_qubits: 3 # na
+  seed: 0 # The seed for the HaarSampleGeneration
 training:
   batch_size: null # If null, it will be set to the size of the training dataset
-  num_epochs: 101 # Epochs for training each time step
-  learning_rate: null
+  n_epochs: 2 # Epochs for training each time step
+  learning_rate: 0.0005
 dataset:
   dir: 'data' # Directory to store the dataset
   name: 'MNIST0' # 'MNIST', 'MNIST0'
-  # customlabel: 'MNIST0' # 'MNIST0', '01'
-  maxsize: 100
+  maxsize: 1000
   transforms:
-    resize: 1 # nxn pixels to resize.
+    resize: 8 # nxn pixels to resize.

@@ -3,6 +3,7 @@ pennylane_tuto.ipynb
 test.ipynb
 data
 .vscode
+processes_ids.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
