@@ -75,7 +75,7 @@ class DiffusionModel(nn.Module):
         diff_hs: the hyper-parameter to control the amplitude of quantum circuit angles
         '''
         # set single-qubit rotation angles
-        np.random.seed(seed)
+        torch.manual_seed(seed)
         phis = torch.rand(self.Ndata, 3*self.n*t, device=self.device)*np.pi/4. - np.pi/8.
         phis = phis*(diff_hs.repeat(3*self.n))
         if self.n > 1:
