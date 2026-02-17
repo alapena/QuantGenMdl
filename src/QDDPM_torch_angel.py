@@ -14,7 +14,7 @@ K = tc.set_backend('pytorch')
 tc.set_dtype('complex64')
 
 class DiffusionModel(nn.Module):
-    def __init__(self, n, T, Ndata):
+    def __init__(self, n, T, Ndata, device='cpu'):
         '''
         the diffusion quantum circuit model to scramble arbitrary set of states to Haar random states
         Args:
@@ -26,6 +26,7 @@ class DiffusionModel(nn.Module):
         self.n = n
         self.T = T
         self.Ndata = Ndata
+        self.device=device
     
     def HaarSampleGeneration(self, Ndata, seed):
         '''
@@ -75,13 +76,13 @@ class DiffusionModel(nn.Module):
         '''
         # set single-qubit rotation angles
         np.random.seed(seed)
-        phis = torch.rand(self.Ndata, 3*self.n*t)*np.pi/4. - np.pi/8.
+        phis = torch.rand(self.Ndata, 3*self.n*t, device=self.device)*np.pi/4. - np.pi/8.
         phis = phis*(diff_hs.repeat(3*self.n))
         if self.n > 1:
             # set homogenous RZZ gate angles
-            gs = torch.rand(self.Ndata, t)*0.2 + 0.4
+            gs = torch.rand(self.Ndata, t, device=self.device)*0.2 + 0.4
             gs *= diff_hs
-        states = torch.zeros((self.Ndata, 2**self.n)).cfloat()
+        states = torch.zeros((self.Ndata, 2**self.n), device=self.device).cfloat()
         for i in range(self.Ndata):
             if self.n > 1:
                 states[i] = self.scrambleCircuit_t(t, inputs[i], phis[i], gs[i])

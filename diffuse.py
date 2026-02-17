@@ -6,14 +6,14 @@ import numpy as np
 import yaml
 
 def main():
-    config = yaml.safe_load(open('config_debug.yaml', 'r'))
+    config = yaml.safe_load(open('config.yaml', 'r'))
     dataset_config = config['dataset']
     model_config = config['model']
     device = set_device(config.get('device', 'cpu'))
 
     # Load the states
     n_data = dataset_config['maxsize'] # EDITABLE
-    n_pixels = int(np.sqrt(dataset_config['transforms']['resize'])) # EDITABLE
+    n_pixels = int(np.square(dataset_config['transforms']['resize'])) # EDITABLE
     _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
 
     dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits) # Editable

@@ -6,7 +6,7 @@ import numpy as np
 import yaml
 
 def main():
-    config = yaml.safe_load(open('config_debug.yaml', 'r'))
+    config = yaml.safe_load(open('config.yaml', 'r'))
     dataset_config = config['dataset']
 
     dataset = get_dataset(dataset_config)
@@ -24,7 +24,8 @@ def main():
     n_data = dataset.shape[0]
     n_pixels = dataset.shape[1]
     _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
-    dataset = np.pad(dataset, ((0,0), (0,2**n_qubits-1)), 'constant', constant_values=0)
+    dims_to_pad = 2**n_qubits-dataset.shape[1]
+    dataset = np.pad(dataset, ((0,0), (0,dims_to_pad, 0)), 'constant', constant_values=0) if dims_to_pad > 0 else dataset
 
     # Save the generated quantum states
     dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits)
