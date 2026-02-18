@@ -32,3 +32,40 @@ conda create -n ogQDDPM \
   -c pytorch -c conda-forge -y && \
 conda activate ogQDDPM && \
 pip install --no-deps tensorcircuit ott-jax tensornetwork graphviz qutip
+
+With cuda:
+conda create -n ogQDDPMcuda \
+  numpy=1.23 \
+  scipy \
+  ipykernel \
+  matplotlib \
+  tqdm \
+  pyyaml \
+  conda-forge::jax \
+  conda-forge::jaxlib \
+  conda-forge::optax \
+  conda-forge::tensorflow \
+  conda-forge::pot \
+  conda-forge::opt_einsum \
+  conda-forge::tensorflow-probability && \
+conda activate ogQDDPMcuda && \
+pip install --no-deps torch torchvision tensorcircuit ott-jax tensornetwork graphviz qutip
+
+
+--- Training timestep 20 ---
+/home/angel/miniconda3/envs/ogQDDPMcuda/lib/python3.11/site-packages/torch/cuda/__init__.py:435: UserWarning: 
+    Found GPU1 NVIDIA GeForce GT 1030 which is of cuda capability 6.1.
+    Minimum and Maximum cuda capability supported by this version of PyTorch is
+    (7.0) - (12.0)
+    
+  queued_call()
+/home/angel/miniconda3/envs/ogQDDPMcuda/lib/python3.11/site-packages/torch/cuda/__init__.py:435: UserWarning: 
+    Please install PyTorch with a following CUDA
+    configurations:  12.6 following instructions at
+    https://pytorch.org/get-started/locally/
+    
+  queued_call()
+/home/angel/miniconda3/envs/ogQDDPMcuda/lib/python3.11/site-packages/torch/cuda/__init__.py:435: UserWarning: 
+NVIDIA GeForce GT 1030 with CUDA capability sm_61 is not compatible with the current PyTorch installation.
+The current PyTorch install supports CUDA capabilities sm_70 sm_75 sm_80 sm_86 sm_90 sm_100 sm_120.
+If you want to use the NVIDIA GeForce GT 1030 GPU with PyTorch, please check the instructions at https://pytorch.org/get-started/locally/

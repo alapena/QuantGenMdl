@@ -3,8 +3,8 @@ import numpy as np
 import torch
 
 def set_device(device='cpu', verbose=True):
-    if device == 'cuda' and torch.cuda.is_available():
-        device = torch.device('cuda')
+    if device != 'cpu' and torch.cuda.is_available():
+        device = torch.device(device)
     else:
         device =  torch.device('cpu')
 
@@ -40,12 +40,12 @@ def get_path(config, type='qstates', **kwargs):
 
     elif type == 'modelparams':
         datasetname = dataset_config['name']
-        dir = Path(dataset_config.get('dir', './data')) / datasetname / 'modelresults'
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}"
         filename = f"params_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}_t{kwargs['t']}.npy"
     
     elif type == 'modellosshist':
         datasetname = dataset_config['name']
-        dir = Path(dataset_config.get('dir', './data')) / datasetname / 'modelresults'
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}"
         filename = f"losshist_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}_t{kwargs['t']}.npy"
 
     else:
