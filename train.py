@@ -19,38 +19,9 @@ def main():
     _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
     n_backward_layers = config['model']['n_backward_layers']
     n_ancilla_qubits = config['model']['n_ancilla_qubits']
-    # n_epochs = config['training']['n_epochs']
-    # learning_rate = config['training']['learning_rate']
-    # seed = config['model']['seed']
-
-    # De momento voy a usar como input los corrupted states. Dejo esto para samplear.
-    # # Sample initial random distribution
-    # model_diffusion = DiffusionModel(n_qubits, n_timesteps, n_data)
-    # inputs_last_timestep = model_diffusion.HaarSampleGeneration(n_data, seed=seed)
-
-    # Load diffused states
-    # dir, filename = get_path(config, type='diffusedqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
-    # states_diffused = np.load(dir / filename) # Must be numpy array
 
     # Initialize model
     model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
-    # model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
-    # inputs_last_timestep = torch.from_numpy(states_diffused[0]).to(device)
-
-    # for t in range(n_timesteps, 0, -1): # From T to 1
-    #     print(f"--- Training timestep {t} ---")
-    #     params_tot = torch.zeros((n_timesteps, 2*(n_qubits+n_ancilla_qubits)*n_backward_layers), device=device)
-    #     if t < n_timesteps:
-    #         for tt in range(t+1, n_timesteps+1):
-    #             dir, filename = get_path(config, type='modelparams', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps, t=tt)
-    #             placehold = torch.from_numpy(np.load(dir / filename)).to(device)
-    #             params_tot[tt-1] = placehold
-    #     params, loss_hist = training_timestep_t(model, t, inputs_last_timestep, params_tot, n_data, n_epochs, learning_rate)
-
-    #     dir, filename = get_path(config, type='modelparams', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps, t=t)
-    #     np.save(dir / filename, params.detach().numpy())
-    #     dir, filename = get_path(config, type='modellosshist', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps, t=t)
-    #     np.save(dir / filename, loss_hist.detach().numpy())
 
     trainer = Trainer(model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
     trainer.train()
@@ -65,7 +36,7 @@ def main():
 ######################################################################
 
 class Trainer():
-    def __init__(self, model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers):
+    def __init__(self, model: QDDPM, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers):
         self.model = model
         self.config = config
         self.device = model.device

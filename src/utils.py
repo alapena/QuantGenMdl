@@ -38,6 +38,11 @@ def get_path(config, type='qstates', **kwargs):
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'wassdist'
         filename = f"wassdist_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
 
+    elif type == 'sinkdist':
+        datasetname = dataset_config['name']
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / 'sinkdist'
+        filename = f"sinkdist_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}_ϵ{kwargs['reg']}.npy"
+
     elif type == 'modelparams':
         datasetname = dataset_config['name']
         dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}"
