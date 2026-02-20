@@ -1,5 +1,5 @@
 from src.utils import get_path, find_closest_power_of_2, set_device
-from src.QDDPM_torch_angel import DiffusionModel, QDDPM, WassDistance
+from src.QDDPM_torch_angel import DiffusionModel, QDDPM, WassDistance, sinkhornDistance
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -49,6 +49,7 @@ class Trainer():
         self.n_ancilla_qubits = n_ancilla_qubits
         self.n_backward_layers = n_backward_layers
         self.n_epochs = self.config['training']['n_epochs']
+        self.reg = config['training']['regularization']
 
     def train(self):
         n_data = self.n_data
@@ -59,13 +60,14 @@ class Trainer():
         n_backward_layers = self.n_backward_layers
         n_ancilla_qubits = self.n_ancilla_qubits
         learning_rate = self.config['training']['learning_rate']
+        
 
         # Load diffused states
         dir, filename = get_path(self.config, type='diffusedqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
         states_diffused = np.load(dir / filename) # Must be numpy array
 
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
-        inputs_last_timestep = torch.from_numpy(states_diffused[0]).to(self.device)
+        inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
 
         for t in range(n_timesteps, 0, -1): # From T to 1
             print(f"--- Training timestep {t} ---")
@@ -122,13 +124,13 @@ class Trainer():
     def save_results(self, params, loss_hist, t, prefix='', verbose=True):
             
             dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, t=t)
-            np.save(dir / filename, params)
+            np.save(dir / (prefix+filename), params)
 
             if verbose:
                 print(f"Saved parameters at {dir/(prefix+filename)}.")
 
             dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, t=t)
-            np.save(dir / filename, loss_hist)
+            np.save(dir / (prefix+filename), loss_hist)
 
 
 

@@ -224,7 +224,7 @@ def sinkhornDistance(Set1, Set2, reg=0.005, log=False):
         log: whether to use the log-solver
     '''
     D = 1. - torch.abs(Set1.conj() @  Set2.T)**2.
-    emt = torch.empty(0)
+    emt = torch.empty(0, device=Set1.device)
     if log == True:
         sh_dis = ot.sinkhorn2(emt, emt, M=D, reg=reg, method='sinkhorn_log')
     else:
