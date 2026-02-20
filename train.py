@@ -123,13 +123,13 @@ class Trainer():
     
     def save_results(self, params, loss_hist, t, prefix='', verbose=True):
             
-            dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, t=t)
+            dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), params)
 
             if verbose:
                 print(f"Saved parameters at {dir/(prefix+filename)}.")
 
-            dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, t=t)
+            dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), loss_hist)
 
 
