@@ -4,7 +4,7 @@ model:
   # max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
   diffusion_schedule: 'lin2.5T' # 'linear', 'quadratic', 'pow6', 'pow{n}', 'powint{n}', 'linT', 'lin2T', 'lin3T, 'lin2T+2', 'lin2.5T'
   n_backward_layers: 10 # L
-  n_ancilla_qubits: 10 # na
+  n_ancilla_qubits: 4 # na
   seed: 0 # The seed for the HaarSampleGeneration
 training:
   batch_size: null # If null, it will be set to the size of the training dataset
