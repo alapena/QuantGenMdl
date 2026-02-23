@@ -74,7 +74,7 @@ class Trainer():
             params_tot = torch.zeros((n_timesteps, 2*(n_qubits+n_ancilla_qubits)*n_backward_layers), device=self.device)
             if t < n_timesteps:
                 for tt in range(t+1, n_timesteps+1):
-                    dir, filename = get_path(self.config, type='modelparams', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps, t=tt)
+                    dir, filename = get_path(self.config, type='modelparams', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
                     params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
             params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, n_data, learning_rate)
 
