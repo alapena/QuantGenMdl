@@ -5,6 +5,7 @@ from tqdm import tqdm
 import numpy as np
 import torch
 import yaml
+import re
 
 def main():
     config = yaml.safe_load(open('config.yaml', 'r'))
@@ -29,6 +30,8 @@ def main():
     max_diffusion_weight = torch.tensor(model_config.get('max_diffusion_weight', 4.0), device=device)
     diffusion_schedule = model_config.get('diffusion_schedule', 'linear')
 
+    match_pow = re.match(r'pow(\d+)', diffusion_schedule)
+    match_int = re.match(r'powint(\d+)', diffusion_schedule)
     if diffusion_schedule == 'linear':
         diffusion_weights = torch.linspace(1., max_diffusion_weight, n_timesteps, device=device) # Hyperparameter that controls the 'size' of diffusion steps.
     elif diffusion_schedule == 'quadratic':
@@ -38,6 +41,24 @@ def main():
         # y = 3* (x/4)**6 + 1 \in [1, 4]
         x = torch.linspace(1., torch.tensor(4), n_timesteps, device=device)
         diffusion_weights = 1 + 3*torch.pow((x/4), 6)
+    elif match_pow:
+        n = int(match_pow.group(1)) 
+        x = torch.linspace(1., torch.tensor(4), n_timesteps, device=device)
+        diffusion_weights = 1 + 3*torch.pow((x/4), n)
+    elif match_int:
+        n = int(match_int.group(1)) 
+        linear_steps = torch.linspace(1., torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
+        diffusion_weights = torch.pow((linear_steps/(n_timesteps+1)), n)
+    elif diffusion_schedule == 'linT':
+        diffusion_weights = 1/(n_timesteps+1)*torch.linspace(1., torch.tensor(2*n_timesteps+1), n_timesteps+1, device=device)
+    elif diffusion_schedule == 'lin2T':
+        diffusion_weights = 1/(n_timesteps+1)*torch.linspace(1., 2*torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
+    elif diffusion_schedule == 'lin3T':
+        diffusion_weights = 1/(n_timesteps+1)*torch.linspace(1., 3*torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
+    elif diffusion_schedule == 'lin2T+2':
+        diffusion_weights = 1/(n_timesteps+1)*torch.linspace(1., 2*torch.tensor(n_timesteps+2), n_timesteps+3, device=device)
+    elif diffusion_schedule == 'lin2.5T':
+        diffusion_weights = 1/(n_timesteps+1)*torch.linspace(1., 2.5*torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
     else:
         raise NotImplementedError('Diffusion schedule not implemented.')
 
