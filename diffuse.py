@@ -29,12 +29,17 @@ def main():
     max_diffusion_weight = torch.tensor(model_config.get('max_diffusion_weight', 4.0), device=device)
     diffusion_schedule = model_config.get('diffusion_schedule', 'linear')
 
-    # Linear:
-    # diffusion_weights = torch.linspace(1., max_diffusion_weight, n_timesteps, device=device) # Hyperparameter that controls the 'size' of diffusion steps.
-
-    # Quadratic:
-    linear_steps = torch.linspace(1., torch.sqrt(max_diffusion_weight), n_timesteps, device=device)
-    diffusion_weights = torch.pow(linear_steps, 2)
+    if diffusion_schedule == 'linear':
+        diffusion_weights = torch.linspace(1., max_diffusion_weight, n_timesteps, device=device) # Hyperparameter that controls the 'size' of diffusion steps.
+    elif diffusion_schedule == 'quadratic':
+        linear_steps = torch.linspace(1., torch.sqrt(max_diffusion_weight), n_timesteps, device=device)
+        diffusion_weights = torch.pow(linear_steps, 2)
+    elif diffusion_schedule == 'pow6':
+        # y = 3* (x/4)**6 + 1 \in [1, 4]
+        x = torch.linspace(1., torch.tensor(4), n_timesteps, device=device)
+        diffusion_weights = 1 + 3*torch.pow((x/4), 6)
+    else:
+        raise NotImplementedError('Diffusion schedule not implemented.')
 
     # states = np.zeros((n_timesteps+1, n_data, 2**n_qubits), dtype=np.complex64)
     states = torch.zeros((n_timesteps+1, n_data, 2**n_qubits), device=device, dtype=torch.complex64)
@@ -47,7 +52,7 @@ def main():
     dir, filename = get_path(config, type='diffusedqstates', diffusion_schedule=diffusion_schedule, n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
     np.save(dir / filename, states.detach().cpu().numpy())
 
-    print(f"Saved diffused quantum stated in {dir / filename}")
+    print(f"Saved diffused quantum states in {dir / filename}")
 
 if __name__ == "__main__":
     main()
