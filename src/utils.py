@@ -31,7 +31,7 @@ def get_path(config, type='qstates', **kwargs):
     elif type == 'diffusedqstates':
         datasetname = dataset_config['name']
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'diffusedqstates'
-        filename = f"diffusedqstates_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
+        filename = f"diffusedqstates_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
     
     elif type == 'wassdistforward':
         datasetname = dataset_config['name']

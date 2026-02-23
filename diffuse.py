@@ -11,6 +11,7 @@ def main():
     dataset_config = config['dataset']
     model_config = config['model']
     device = set_device(config.get('device', 'cpu'))
+    torch.set_default_device(device)
 
     # Load the states
     n_data = dataset_config['maxsize'] # EDITABLE
@@ -18,26 +19,32 @@ def main():
     _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
 
     dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits) # Editable
-    dataset = torch.from_numpy(np.load(dir / filename), device=device)
+    dataset = torch.from_numpy(np.load(dir / filename)).to(device)
 
     # Initialize the model
     n_timesteps, n_data = config['model']['n_timesteps'], dataset.shape[0]
-    model = DiffusionModel(n_qubits, n_timesteps, n_data)
+    model = DiffusionModel(n_qubits, n_timesteps, n_data, device=device)
 
     # Get the diffused states
-    max_diffusion_weight = model_config.get('max_diffusion_weight', 4.0)
-    # diffusion_weights = np.linspace(1., max_diffusion_weight, n_timesteps) # Hyperparameter that controls the 'size' of diffusion steps.
-    diffusion_weights = torch.linspace(1., max_diffusion_weight, n_timesteps) # Hyperparameter that controls the 'size' of diffusion steps.
+    max_diffusion_weight = torch.tensor(model_config.get('max_diffusion_weight', 4.0), device=device)
+    diffusion_schedule = model_config.get('diffusion_schedule', 'linear')
+
+    # Linear:
+    # diffusion_weights = torch.linspace(1., max_diffusion_weight, n_timesteps, device=device) # Hyperparameter that controls the 'size' of diffusion steps.
+
+    # Quadratic:
+    linear_steps = torch.linspace(1., torch.sqrt(max_diffusion_weight), n_timesteps, device=device)
+    diffusion_weights = torch.pow(linear_steps, 2)
 
     # states = np.zeros((n_timesteps+1, n_data, 2**n_qubits), dtype=np.complex64)
-    states = torch.zeros((n_timesteps+1, n_data, 2**n_qubits),device=device, dtype=torch.complex64)
+    states = torch.zeros((n_timesteps+1, n_data, 2**n_qubits), device=device, dtype=torch.complex64)
     states[0] = dataset
     for t in tqdm(range(1, n_timesteps+1)):
         states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
         # states[t] = states[t] / np.linalg.norm(states[t], axis=1, keepdims=True) # Avoid numerical errors
         states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
 
-    dir, filename = get_path(config, type='diffusedqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
+    dir, filename = get_path(config, type='diffusedqstates', diffusion_schedule=diffusion_schedule, n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
     np.save(dir / filename, states.detach().numpy())
 
     print(f"Saved diffused quantum stated in {dir / filename}")

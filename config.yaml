@@ -2,6 +2,7 @@ device: 'cuda:1' # 'cpu', 'cuda:0', 'cuda:1'
 model:
   n_timesteps: 20 # Number of time steps T
   max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
+  diffusion_schedule: 'quadratic' # 'linear', 'quadratic'
   n_backward_layers: 6 # L
   n_ancilla_qubits: 3 # na
   seed: 0 # The seed for the HaarSampleGeneration
