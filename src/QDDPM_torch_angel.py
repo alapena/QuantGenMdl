@@ -27,6 +27,8 @@ class DiffusionModel(nn.Module):
         self.T = T
         self.Ndata = Ndata
         self.device=device
+
+        self.scrambleCircuit_t_vmap = K.vmap(self.scrambleCircuit_t, vectorized_argnums=(1,2,3))
     
     def HaarSampleGeneration(self, Ndata, seed):
         '''
@@ -83,11 +85,16 @@ class DiffusionModel(nn.Module):
             gs = torch.rand(self.Ndata, t, device=self.device)*0.2 + 0.4
             gs *= diff_hs
         states = torch.zeros((self.Ndata, 2**self.n), device=self.device).cfloat()
-        for i in range(self.Ndata):
-            if self.n > 1:
-                states[i] = self.scrambleCircuit_t(t, inputs[i], phis[i], gs[i])
-            else:
-                states[i] = self.scrambleCircuit_t(t, inputs[i], phis[i])
+        # for i in range(self.Ndata):
+        #     if self.n > 1:
+        #         states[i] = self.scrambleCircuit_t(t, inputs[i], phis[i], gs[i])
+        #     else:
+        #         states[i] = self.scrambleCircuit_t(t, inputs[i], phis[i])
+        if self.n > 1:
+            states = self.scrambleCircuit_t_vmap(t, inputs, phis, gs)
+        else:
+            states = self.scrambleCircuit_t_vmap(t, inputs, phis)
+
         return states
 
 
