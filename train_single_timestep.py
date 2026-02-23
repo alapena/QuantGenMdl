@@ -70,7 +70,6 @@ class Trainer():
         states_diffused = np.load(dir / filename) # Must be numpy array
 
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
-        inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
 
         params, loss_hist = self.train_timestep_t(TIMESTEP, n_data, learning_rate)
 
@@ -80,7 +79,8 @@ class Trainer():
     def train_timestep_t(self, t, n_data, lr):
         # input_tplus1 = self.model.prepareInput_t(inputs_last_timestep, params_tot, t, n_data)
         states_diffused = self.model.states_diff
-        input_tplus1 = states_diffused[t+1]
+        input_tplus1 = torch.zeros((n_data, 2**(self.n_qubits + self.n_ancilla_qubits)), device=self.device).cfloat()
+        input_tplus1[:,:2**self.n_qubits] = states_diffused[t+1]
 
         # initialize parameters
         np.random.seed()
@@ -120,13 +120,13 @@ class Trainer():
     
     def save_results(self, params, loss_hist, t, prefix='', verbose=True):
             
-            dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), params)
 
             if verbose:
                 print(f"Saved parameters at {dir/(prefix+filename)}.")
 
-            dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), loss_hist)
 
 
