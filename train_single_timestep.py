@@ -22,11 +22,15 @@ def main():
     n_backward_layers = config['model']['n_backward_layers']
     n_ancilla_qubits = config['model']['n_ancilla_qubits']
 
-    # Initialize model
-    model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
+    # Entrena varios modelos variando el n ancilla qubits
+    values = range(10)
+    for n_ancilla_qubits in values:
+        print(f"---TRAINING WITH n_ancilla_qubits={n_ancilla_qubits}---")
+        # Initialize model
+        model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
 
-    trainer = Trainer(model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
-    trainer.train()
+        trainer = Trainer(model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
+        trainer.train()
 
 
 

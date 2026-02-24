@@ -3,7 +3,7 @@ model:
   n_timesteps: 20 # Number of time steps T
   # max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
   diffusion_schedule: 'lin2.5T' # 'linear', 'quadratic', 'pow6', 'pow{n}', 'powint{n}', 'linT', 'lin2T', 'lin3T, 'lin2T+2', 'lin2.5T'
-  n_backward_layers: 10 # L
+  n_backward_layers: 9 # L
   n_ancilla_qubits: 4 # na
   seed: 0 # The seed for the HaarSampleGeneration
 training:
