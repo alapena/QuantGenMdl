@@ -1,7 +1,9 @@
 from src.utils import get_path, find_closest_power_of_2, set_device
 from src.QDDPM_torch_angel import DiffusionModel, QDDPM, WassDistance, sinkhornDistance
+from plotly.subplots import make_subplots
 from tqdm import tqdm
 import numpy as np
+import plotly.graph_objects as go
 import torch
 import yaml
 import time
@@ -23,7 +25,7 @@ def main():
     n_ancilla_qubits = config['model']['n_ancilla_qubits']
 
     # Entrena varios modelos variando el n ancilla qubits
-    values = range(10)
+    values = [4]
     for n_ancilla_qubits in values:
         print(f"---TRAINING WITH n_ancilla_qubits={n_ancilla_qubits}---")
         # Initialize model
@@ -56,6 +58,11 @@ class Trainer():
         self.n_backward_layers = n_backward_layers
         self.n_epochs = self.config['training']['n_epochs']
         self.reg = config['training']['regularization']
+
+        self.history = {
+            'lr': [],
+            'loss': [],
+        }
 
     def train(self):
         n_data = self.n_data
@@ -91,6 +98,7 @@ class Trainer():
         np.random.seed()
         params_t = torch.tensor(np.random.normal(size=2 * self.model.n_tot * self.model.L), device=self.device, requires_grad=True)
         optimizer = torch.optim.Adam([params_t], lr=lr)
+        lr_scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
         loss_hist = []
 
         t0 = time.time()
@@ -105,6 +113,7 @@ class Trainer():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            lr_scheduler.step()
 
             loss_value = loss.detach().cpu()
 
@@ -118,7 +127,13 @@ class Trainer():
                 self.save_results(params_t.detach().cpu(), loss_hist, t, verbose=False, prefix='SINGLE')
                 last_save = epoch
 
-            loss_hist.append(loss_value) # record the current loss
+            # Save and plot stats
+            self.history['lr'].append(lr_scheduler.get_last_lr()[0])
+            self.history['loss'].append(loss_value)
+            loss_hist.append(loss_value)
+
+            if epoch//50 == 0:
+                self.plot_loss(t)
             
 
         return params_t, torch.stack(loss_hist)
@@ -134,52 +149,44 @@ class Trainer():
             dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), loss_hist)
 
+    def plot_loss(self, t):
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
 
+        fig.add_trace(
+            go.Scatter(
+                y = self.history['loss'],
+                name = 'Loss'
+            ),
+            secondary_y=False
+        )
 
-# def training_timestep_t(model, t, inputs_T, params_tot, n_data, epochs, lr):
-#     '''
-#     the trianing for the backward PQC at step t
-#     input_tplus1: the output from step t+1, as the role of input at step t
-#     Args:
-#     model: the QDDPM model
-#     t: the diffusion step
-#     inputs_T: the input data at step t=T
-#     params_tot: collection of PQC parameters before step t
-#     Ndata: number of samples in dataset
-#     epochs: the number of iterations
-#     '''
-#     input_tplus1 = model.prepareInput_t(inputs_T, params_tot, t, n_data) # prepare input
-#     states_diff = model.states_diff
-#     loss_hist = [] # record of training history
-#     device = model.device
+        fig.add_trace(
+            go.Scatter(
+                y = self.history['lr'],
+                name = 'Learning rate',
+                line=dict(color="lightgreen", dash="solid"),
+            ),
+            secondary_y=True
+        )
 
-#     # initialize parameters
-#     np.random.seed()
-#     params_t = torch.tensor(np.random.normal(size=2 * model.n_tot * model.L), device=device, requires_grad=True)
-#     # set optimizer and learning rate decay
-#     optimizer = torch.optim.Adam([params_t], lr=lr)
-    
-#     # pbar = tqdm(range(epochs))
-#     t0 = time.time()
-#     for step in range(epochs):
-#         indices = np.random.choice(states_diff.shape[1], size=n_data, replace=False)
-#         true_data = states_diff[t, indices]
+        fig.update_layout(
+            title = f'Loss plot of timestep {t}',
+            xaxis_title = 'Epoch',
+            yaxis = dict(
+                title = 'Loss'
+            ),
+            yaxis2 = dict(
+                title = 'Learning rate',
+                showgrid = False,
+                side = 'right',
+                type="log",
+                tickformat=".0e",
+            )
+        )
 
-#         output_t = model.backwardOutput_t(input_tplus1, params_t)
-#         loss = WassDistance(output_t, true_data)
-#         optimizer.zero_grad()
-#         loss.backward()
-#         optimizer.step()
+        dir, filename = get_path(self.config, type='lossplot', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+        fig.write_html(str(dir/filename))
 
-#         loss_hist.append(loss) # record the current loss
-        
-#         print(f"Epoch {step}, loss: {loss.item():.4f}, time elapsed: {time.time() - t0:.1f}s")
-#             # pbar.set_postfix({
-#             #     'loss': f"{loss.item():.4f}", 
-#             #     'elapsed': f"{time.time() - t0:.1f}s"
-#             # })
-
-#     return params_t, torch.stack(loss_hist)
 
 
 if __name__ == "__main__":

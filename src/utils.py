@@ -93,6 +93,11 @@ def get_path(config, type='qstates', **kwargs):
         dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
         filename = f"SINGLEfinallosshist_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}_t{kwargs['t']}.npy"
 
+    elif type == 'lossplot':
+        datasetname = dataset_config['name']
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
+        filename = f"lossplot_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}_t{kwargs['t']}.html"
+
     else:
         raise NotImplementedError(f"Path type '{type}' not implemented.")
     

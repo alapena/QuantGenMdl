@@ -1,4 +1,4 @@
-device: 'cuda:1' # 'cpu', 'cuda:0', 'cuda:1'
+device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 model:
   n_timesteps: 20 # Number of time steps T
   # max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
@@ -9,7 +9,7 @@ model:
 training:
   batch_size: null # If null, it will be set to the size of the training dataset
   n_epochs: 5001 # Epochs for training each time step
-  learning_rate: 0.0005
+  learning_rate: 0.005
   regularization: 0.03
 dataset:
   dir: 'data' # Directory to store the dataset
