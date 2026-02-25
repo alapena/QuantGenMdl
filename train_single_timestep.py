@@ -113,7 +113,6 @@ class Trainer():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            lr_scheduler.step()
 
             loss_value = loss.detach().cpu()
 
@@ -132,8 +131,10 @@ class Trainer():
             self.history['loss'].append(loss_value)
             loss_hist.append(loss_value)
 
-            if epoch//50 == 0:
+            if (epoch+1)%50 == 0:
                 self.plot_loss(t)
+            
+            lr_scheduler.step()
             
 
         return params_t, torch.stack(loss_hist)

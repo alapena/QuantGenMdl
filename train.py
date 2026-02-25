@@ -67,10 +67,11 @@ class Trainer():
         n_backward_layers = self.n_backward_layers
         n_ancilla_qubits = self.n_ancilla_qubits
         learning_rate = self.config['training']['learning_rate']
+        diffusion_schedule = self.config['model'].get('diffusion_schedule', None)
         
 
         # Load diffused states
-        dir, filename = get_path(self.config, type='diffusedqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
+        dir, filename = get_path(self.config, type='diffusedqstates', diffusion_schedule=diffusion_schedule, n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
         states_diffused = np.load(dir / filename) # Must be numpy array
 
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
@@ -81,7 +82,7 @@ class Trainer():
             params_tot = torch.zeros((n_timesteps, 2*(n_qubits+n_ancilla_qubits)*n_backward_layers), device=self.device)
             if t < n_timesteps:
                 for tt in range(t+1, n_timesteps+1):
-                    dir, filename = get_path(self.config, type='modelparams', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
+                    dir, filename = get_path(self.config, type='modelparams', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
                     params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
             params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, n_data, learning_rate)
 
@@ -137,13 +138,13 @@ class Trainer():
     
     def save_results(self, params, loss_hist, t, prefix='', verbose=True):
             
-            dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), params)
 
             if verbose:
                 print(f"Saved parameters at {dir/(prefix+filename)}.")
 
-            dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), loss_hist)
 
     def plot_loss(self, t):
