@@ -53,12 +53,11 @@ class Trainer():
         self.n_epochs = self.config['training']['n_epochs']
         self.reg = config['training']['regularization']
 
-        self.history = {
-            'lr': [],
-            'loss': [],
-        }
-
     def train(self):
+        dir, filename = get_path(self.config, type='config', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+        with open(dir/filename, 'w') as file:
+            yaml.dump(self.config, file, default_flow_style=False, sort_keys=False)
+        
         n_data = self.n_data
         n_pixels = self.n_pixels
         n_timesteps = self.n_timesteps
@@ -90,6 +89,11 @@ class Trainer():
 
     
     def train_timestep_t(self, t, inputs_last_timestep, params_tot, n_data, lr):
+        self.history = {
+            'lr': [],
+            'loss': [],
+        }
+        
         input_tplus1 = self.model.prepareInput_t(inputs_last_timestep, params_tot, t, n_data)
         states_diffused = self.model.states_diff
 
@@ -131,7 +135,7 @@ class Trainer():
             self.history['loss'].append(loss_value)
             loss_hist.append(loss_value) # record the current loss
             
-            if epoch//50 == 0:
+            if self.config['training']['live_plot'] and epoch%50 == 0:
                 self.plot_loss(t)
 
         return params_t, torch.stack(loss_hist)
