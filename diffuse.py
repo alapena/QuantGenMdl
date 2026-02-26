@@ -59,6 +59,8 @@ def main():
         diffusion_weights = 1/(n_timesteps+1)*torch.linspace(1., 2*torch.tensor(n_timesteps+2), n_timesteps+3, device=device)
     elif diffusion_schedule == 'lin2.5T':
         diffusion_weights = 1/(n_timesteps+1)*torch.linspace(1., 2.5*torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
+    elif diffusion_schedule == 'linear1':
+        diffusion_weights = 1/(n_timesteps+1)*torch.linspace(1., 1.5*torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
     else:
         raise NotImplementedError('Diffusion schedule not implemented.')
 

@@ -56,7 +56,7 @@ class Trainer():
         self.n_params = 2 * self.model.n_tot * self.model.L
 
     def train(self):
-        dir, filename = get_path(self.config, type='config', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+        dir, filename = get_path(self.config, type='config', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
         with open(dir/filename, 'w') as file:
             yaml.dump(self.config, file, default_flow_style=False, sort_keys=False)
         
@@ -87,7 +87,7 @@ class Trainer():
                     params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
             params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, n_data, learning_rate)
 
-            self.save_results(params.detach().cpu(), loss_hist, t, prefix='final')
+            self.save_results(params.detach().cpu(), loss_hist, t, last_epoch=True)
 
     
     def train_timestep_t(self, t, inputs_last_timestep, params_tot, n_data, lr):
@@ -150,8 +150,9 @@ class Trainer():
 
         return params_t, torch.stack(loss_hist)
     
-    def save_results(self, params, loss_hist, t, prefix='', verbose=True):
+    def save_results(self, params, loss_hist, t, prefix='', last_epoch=False, verbose=True):
             
+        if not last_epoch:
             dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), params)
 
@@ -159,6 +160,16 @@ class Trainer():
                 print(f"Saved parameters at {dir/(prefix+filename)}.")
 
             dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            np.save(dir / (prefix+filename), loss_hist)
+
+        else:
+            dir, filename = get_path(self.config, type='modelfinalparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            np.save(dir / (prefix+filename), params)
+
+            if verbose:
+                print(f"Saved parameters at {dir/(prefix+filename)}.")
+
+            dir, filename = get_path(self.config, type='modelfinallosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), loss_hist)
 
     def save_grads(self, epoch, grads):
