@@ -8,7 +8,7 @@ import torch
 import yaml
 import time
 
-TIMESTEP = 1
+TIMESTEP = 12
 
 def main():
     config = yaml.safe_load(open('config.yaml', 'r'))
@@ -25,9 +25,9 @@ def main():
     n_ancilla_qubits = config['model']['n_ancilla_qubits']
 
     # Entrena varios modelos variando el n ancilla qubits
-    values = [4]
-    for n_ancilla_qubits in values:
-        print(f"---TRAINING WITH n_ancilla_qubits={n_ancilla_qubits}---")
+    values = list(range(2, 30))
+    for n_backward_layers in values:
+        print(f"---TRAINING WITH n_backward_layers={n_backward_layers}---")
         # Initialize model
         model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
 
@@ -123,7 +123,7 @@ class Trainer():
 
             # Check if current step is best
             if len(loss_hist) == 0 or loss_value < min(loss_hist):
-                self.save_results(params_t.detach().cpu(), loss_hist, t, verbose=False, prefix='SINGLE')
+                self.save_results(params_t.detach().cpu(), loss_hist, t, verbose=False)
                 last_save = epoch
 
             # Save and plot stats
@@ -139,15 +139,26 @@ class Trainer():
 
         return params_t, torch.stack(loss_hist)
     
-    def save_results(self, params, loss_hist, t, prefix='', verbose=True):
+    def save_results(self, params, loss_hist, t, prefix='', last_epoch=False, verbose=True):
             
-            dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+        if not last_epoch:
+            dir, filename = get_path(self.config, type='modelsingleparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), params)
 
             if verbose:
                 print(f"Saved parameters at {dir/(prefix+filename)}.")
 
-            dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            dir, filename = get_path(self.config, type='modelsinglelosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            np.save(dir / (prefix+filename), loss_hist)
+
+        else:
+            dir, filename = get_path(self.config, type='modelsinglefinalparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+            np.save(dir / (prefix+filename), params)
+
+            if verbose:
+                print(f"Saved parameters at {dir/(prefix+filename)}.")
+
+            dir, filename = get_path(self.config, type='modelsinglefinallosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), loss_hist)
 
     def plot_loss(self, t):
