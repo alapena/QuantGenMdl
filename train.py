@@ -53,6 +53,8 @@ class Trainer():
         self.n_epochs = self.config['training']['n_epochs']
         self.reg = config['training']['regularization']
 
+        self.n_params = 2 * self.model.n_tot * self.model.L
+
     def train(self):
         dir, filename = get_path(self.config, type='config', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
         with open(dir/filename, 'w') as file:
@@ -93,7 +95,11 @@ class Trainer():
             'lr': [],
             'loss': [],
         }
+
+        # To save the gradients
+        self.grad_history_np = np.zeros((self.n_epochs, self.n_params), dtype=np.float32)
         
+        # Prepare input
         input_tplus1 = self.model.prepareInput_t(inputs_last_timestep, params_tot, t, n_data)
         states_diffused = self.model.states_diff
 
@@ -115,6 +121,10 @@ class Trainer():
             loss = WassDistance(output_t, true_data)
             optimizer.zero_grad()
             loss.backward()
+
+            if self.config['training']['save_grads']:
+                self.save_grads(epoch, params_t.grad.detach().cpu().numpy())
+
             optimizer.step()
             lr_scheduler.step()
 
@@ -150,6 +160,9 @@ class Trainer():
 
             dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
             np.save(dir / (prefix+filename), loss_hist)
+
+    def save_grads(self, epoch, grads):
+        pass
 
     def plot_loss(self, t):
         fig = make_subplots(specs=[[{"secondary_y": True}]])

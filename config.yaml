@@ -11,6 +11,8 @@ training:
   n_epochs: 3001 # Epochs for training each time step
   learning_rate: 0.005
   regularization: 0.03
+  live_plot: False
+  save_grads: False
 dataset:
   dir: 'data' # Directory to store the dataset
   name: 'MNIST0' # 'MNIST', 'MNIST0'
