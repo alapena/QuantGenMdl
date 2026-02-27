@@ -2,11 +2,13 @@ from src.utils import get_path, find_closest_power_of_2, set_device
 from src.QDDPM_torch_angel import DiffusionModel, QDDPM, WassDistance, sinkhornDistance
 from plotly.subplots import make_subplots
 from tqdm import tqdm
+from functools import partial
 import numpy as np
 import plotly.graph_objects as go
 import torch
 import yaml
 import time
+import optuna
 
 def main():
     config = yaml.safe_load(open('config.yaml', 'r'))
@@ -22,8 +24,24 @@ def main():
     n_backward_layers = config['model']['n_backward_layers']
     n_ancilla_qubits = config['model']['n_ancilla_qubits']
 
+    mode = config['training']['mode']
+    seed = config['training']['seed']
+
     # Initialize model
-    model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
+    if mode == "optuna":
+        study = optuna.create_study(
+            direction='minimize',
+            sampler=optuna.samplers.CmaEsSampler(seed=seed),
+            pruner=optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
+        )
+
+        study.optimize(objective, n_trials=11)
+
+        print("Best n_backward_layers:", study.best_params['n_backward_layers'])
+        print("Best loss:", study.best_value)
+
+    else:
+        model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
 
     trainer = Trainer(model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
     trainer.train()
@@ -36,6 +54,20 @@ def main():
 #                          HELPER FUNCTIONS                          #
 #                                                                    #
 ######################################################################
+
+def define_model(trial, n_qubits, n_ancilla_qubits, n_timesteps, device='cpu'):
+    n_backward_layers = trial.suggest_int('n_backward_layers', 1, 11)
+
+    model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
+
+    return model, n_backward_layers
+
+def objective(trial, config, n_qubits, n_ancilla_qubits, n_timesteps, n_data, n_pixels, device='cpu'):
+    model, n_backward_layers = define_model(trial, n_qubits, n_ancilla_qubits, n_timesteps, device=device)
+    trainer = Trainer(model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
+    trainer.train()
+    loss = min(trainer.history['loss'])
+    return loss
 
 class Trainer():
     def __init__(self, model: QDDPM, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers):
@@ -51,7 +83,7 @@ class Trainer():
         self.n_ancilla_qubits = n_ancilla_qubits
         self.n_backward_layers = n_backward_layers
         self.n_epochs = self.config['training']['n_epochs']
-        self.reg = config['training']['regularization']
+        self.loss_fn = self.config['training'].get('loss_fn', 'wass')
 
         self.n_params = 2 * self.model.n_tot * self.model.L
 
@@ -59,33 +91,26 @@ class Trainer():
         dir, filename = get_path(self.config, type='config', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
         with open(dir/filename, 'w') as file:
             yaml.dump(self.config, file, default_flow_style=False, sort_keys=False)
-        
-        n_data = self.n_data
-        n_pixels = self.n_pixels
-        n_timesteps = self.n_timesteps
 
-        n_qubits = self.n_qubits
-        n_backward_layers = self.n_backward_layers
-        n_ancilla_qubits = self.n_ancilla_qubits
         learning_rate = self.config['training']['learning_rate']
         diffusion_schedule = self.config['model'].get('diffusion_schedule', None)
-        
 
         # Load diffused states
-        dir, filename = get_path(self.config, type='diffusedqstates', diffusion_schedule=diffusion_schedule, n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_timesteps=n_timesteps)
+        dir, filename = get_path(self.config, type='diffusedqstates', diffusion_schedule=diffusion_schedule, n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
         states_diffused = np.load(dir / filename) # Must be numpy array
 
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
         inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
 
-        for t in range(n_timesteps, 0, -1): # From T to 1
+        self.model.train()
+        for t in range(self.n_timesteps, 0, -1): # From T to 1
             print(f"--- Training timestep {t} ---")
-            params_tot = torch.zeros((n_timesteps, 2*(n_qubits+n_ancilla_qubits)*n_backward_layers), device=self.device)
-            if t < n_timesteps:
-                for tt in range(t+1, n_timesteps+1):
-                    dir, filename = get_path(self.config, type='modelparams', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
+            params_tot = torch.zeros((self.n_timesteps, 2*(self.n_qubits+self.n_ancilla_qubits)*self.n_backward_layers), device=self.device)
+            if t < self.n_timesteps:
+                for tt in range(t+1, self.n_timesteps+1):
+                    dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
                     params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
-            params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, n_data, learning_rate)
+            params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, self.n_data, learning_rate)
 
             self.save_results(params.detach().cpu(), loss_hist, t, last_epoch=True)
 
@@ -110,6 +135,14 @@ class Trainer():
         lr_scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
         loss_hist = []
 
+        # Select loss function
+        if self.loss_fn == 'sinkhorn':
+            reg = self.config['training']['regularization']
+            lossfn = partial(sinkhornDistance, reg=reg)
+        else:
+            lossfn = WassDistance
+
+        # Start training loop
         t0 = time.time()
         last_save = 0 # Epoch where results were last saved
         pbar = tqdm(range(self.n_epochs))
@@ -118,7 +151,7 @@ class Trainer():
             true_data = states_diffused[t, indices]
 
             output_t = self.model.backwardOutput_t(input_tplus1, params_t)
-            loss = WassDistance(output_t, true_data)
+            loss = lossfn(output_t, true_data)
             optimizer.zero_grad()
             loss.backward()
 
