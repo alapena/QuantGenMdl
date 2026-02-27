@@ -7,8 +7,9 @@ model:
   n_ancilla_qubits: 4 # na
   seed: 0 # The seed for the HaarSampleGeneration
 training:
+  mode: "optuna" # "optuna", "train"
   batch_size: null # If null, it will be set to the size of the training dataset
-  n_epochs: 7001 # Epochs for training each time step
+  n_epochs: 5001 # Epochs for training each time step
   learning_rate: 0.005
   regularization: 0.03
   live_plot: False

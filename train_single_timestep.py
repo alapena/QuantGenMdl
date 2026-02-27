@@ -8,7 +8,7 @@ import torch
 import yaml
 import time
 
-TIMESTEP = 12
+TIMESTEP = 5
 
 def main():
     config = yaml.safe_load(open('config.yaml', 'r'))
@@ -25,7 +25,7 @@ def main():
     n_ancilla_qubits = config['model']['n_ancilla_qubits']
 
     # Entrena varios modelos variando el n ancilla qubits
-    values = list(range(2, 30))
+    values = list(range(1, 15))
     for n_backward_layers in values:
         print(f"---TRAINING WITH n_backward_layers={n_backward_layers}---")
         # Initialize model
@@ -84,7 +84,7 @@ class Trainer():
 
         params, loss_hist = self.train_timestep_t(TIMESTEP, n_data, learning_rate)
 
-        self.save_results(params.detach().cpu(), loss_hist, TIMESTEP, prefix='SINGLEfinal')
+        self.save_results(params.detach().cpu(), loss_hist, TIMESTEP, last_epoch=True)
 
     
     def train_timestep_t(self, t, n_data, lr):
