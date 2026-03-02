@@ -140,6 +140,7 @@ class QDDPM(nn.Module):
         self.device = device
         # embed the circuit to a vectorized pytorch neural network layer
         self.backCircuit_vmap = K.vmap(partial(backCircuit, n_tot=self.n_tot, L=L), vectorized_argnums=0)
+        self.backCircuit_L_vmap = K.vmap(partial(backCircuit, n_tot=self.n_tot), vectorized_argnums=0)
 
     def set_diffusionSet(self, states_diff):
         self.states_diff = torch.from_numpy(states_diff).to(self.device).cfloat()
@@ -158,6 +159,18 @@ class QDDPM(nn.Module):
         post_state = torch.gather(inputs, 1, indices)
         norms = torch.sqrt(torch.sum(torch.abs(post_state)**2, axis=1)).unsqueeze(dim=1)
         return 1./norms * post_state
+
+    def backwardOutput_dynamicL_t(self, inputs, params, L):
+        '''
+        Backward denoise process at step t
+        Args:
+        inputs: the input data set at step t
+        '''
+        # outputs through quantum circuits before measurement
+        output_full = self.backCircuit_L_vmap(inputs, params, L=L) 
+        # perform measurement
+        output_t = self.randomMeasure(output_full)
+        return output_t
 
     def backwardOutput_t(self, inputs, params):
         '''
@@ -183,6 +196,20 @@ class QDDPM(nn.Module):
         with torch.no_grad():
             for tt in range(self.T-1, t, -1):
                 self.input_tplus1[:,:2**self.n] = self.backwardOutput_t(self.input_tplus1, params_tot[tt])
+        return self.input_tplus1
+
+    def prepareInput_optuna_t(self, inputs_T, params_tplus1, t, Ndata):
+        '''
+        prepare the input samples for step t
+        Args:
+        inputs_T: the input state at the beginning of backward
+        params_tplus1: circuit parameters of step t+1
+        '''
+        self.input_tplus1 = torch.zeros((Ndata, 2**self.n_tot), device=self.device).cfloat()
+        self.input_tplus1[:,:2**self.n] = inputs_T
+        with torch.no_grad():
+            for tt in range(self.T-1, t, -1):
+                self.input_tplus1[:,:2**self.n] = self.backwardOutput_t(self.input_tplus1, params_tplus1)
         return self.input_tplus1
     
     def backDataGeneration(self, inputs_T, params_tot, Ndata):

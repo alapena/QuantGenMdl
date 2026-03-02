@@ -3,14 +3,17 @@ model:
   n_timesteps: 40 # Number of time steps T
   # max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
   diffusion_schedule: 'linear1' # 'linear', 'quadratic', 'pow6', 'pow{n}', 'powint{n}', 'linT', 'lin2T', 'lin3T, 'lin2T+2', 'lin2.5T'
-  n_backward_layers: 9 # L
+  n_backward_layers: 2 # L
   n_ancilla_qubits: 4 # na
   seed: 0 # The seed for the HaarSampleGeneration
 training:
-  mode: "optuna" # "optuna", "train"
   batch_size: null # If null, it will be set to the size of the training dataset
   n_epochs: 5001 # Epochs for training each time step
   learning_rate: 0.005
+  lr_scheduler: 
+    type: 'CosineAnnealingWarmRestarts' # 'CosineAnnealingWarmRestarts', 'ctt',
+    T_0: 50
+    T_mult: 2
   regularization: 0.03
   live_plot: False
   save_grads: False
