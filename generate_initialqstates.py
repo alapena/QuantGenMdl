@@ -6,7 +6,7 @@ import numpy as np
 import yaml
 
 def main():
-    config = yaml.safe_load(open('config.yaml', 'r'))
+    config = yaml.safe_load(open('config_debug.yaml', 'r'))
     dataset_config = config['dataset']
 
     dataset = get_dataset(dataset_config)
