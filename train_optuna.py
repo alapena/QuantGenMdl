@@ -133,6 +133,7 @@ class QuantumDiffusionArchitect():
 
             # Save results
             dir = Path(f"data/MNIST0/results_optuna")
+            dir.mkdir(parents=True, exist_ok=True)
             filename = f"results.yaml"
             with open(dir / filename, 'w') as f:
                 yaml.dump(self.best_layers, f, default_flow_style=False)
