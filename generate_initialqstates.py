@@ -6,7 +6,7 @@ import numpy as np
 import yaml
 
 def main():
-    config = yaml.safe_load(open('config_debug.yaml', 'r'))
+    config = yaml.safe_load(open('config.yaml', 'r'))
     dataset_config = config['dataset']
 
     dataset = get_dataset(dataset_config)
@@ -77,6 +77,15 @@ def get_dataset(dataset_config, verbose=True):
         maxsize = dataset_config.get('maxsize', len(dataset))
         indices = indices[:maxsize]
         dataset = Subset(dataset, indices)
+
+    elif dataset_config['name'] == 'MNIST1':
+        # Load the MNIST dataset and filter for digit '0' only
+        dataset = datasets.MNIST(root=dir, train=True, download=True, transform=transform)
+        indices = [i for i, (img, label) in enumerate(dataset) if label == 1]
+        maxsize = dataset_config.get('maxsize', len(dataset))
+        indices = indices[:maxsize]
+        dataset = Subset(dataset, indices)
+
     else:
         raise NotImplementedError(f"Dataset {dataset_config['name']} not implemented.")
 

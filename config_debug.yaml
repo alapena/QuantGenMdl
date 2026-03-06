@@ -1,8 +1,8 @@
 device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 model:
-  n_timesteps: 20 # Number of time steps T
+  n_timesteps: 40 # Number of time steps T
   # max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
-  diffusion_schedule: 'lin2.5T' # 'linear', 'quadratic', 'pow6', 'pow{n}', 'powint{n}', 'linT', 'lin2T', 'lin3T, 'lin2T+2', 'lin2.5T'
+  diffusion_schedule: 'linear1' # 'linear', 'quadratic', 'pow6', 'pow{n}', 'powint{n}', 'linT', 'lin2T', 'lin3T, 'lin2T+2', 'lin2.5T'
   n_backward_layers: 2 # L
   n_ancilla_qubits: 4 # na
   seed: 0 # The seed for the HaarSampleGeneration
@@ -21,7 +21,7 @@ training:
   loss_fn: 'sinkhorn' # 'sinkhorn', 'wass'
 dataset:
   dir: 'data' # Directory to store the dataset
-  name: 'MNIST0' # 'MNIST', 'MNIST0'
+  name: 'MNIST1' # 'MNIST', 'MNIST0'
   maxsize: 1000
   transforms:
-    resize: 8 # nxn pixels to resize.
+    resize: 16 # nxn pixels to resize.

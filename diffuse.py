@@ -8,7 +8,7 @@ import yaml
 import re
 
 def main():
-    config = yaml.safe_load(open('config_debug.yaml', 'r'))
+    config = yaml.safe_load(open('config.yaml', 'r'))
     dataset_config = config['dataset']
     model_config = config['model']
     device = set_device(config.get('device', 'cpu'))
