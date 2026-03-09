@@ -2,13 +2,14 @@ from src.utils import get_path, find_closest_power_of_2, set_device
 from src.QDDPM_torch_angel import DiffusionModel, QDDPM, WassDistance, sinkhornDistance
 from plotly.subplots import make_subplots
 from tqdm import tqdm
+from functools import partial
 import numpy as np
 import plotly.graph_objects as go
 import torch
 import yaml
 import time
 
-TIMESTEP = 5
+TIMESTEP = 40
 
 def main():
     config = yaml.safe_load(open('config.yaml', 'r'))
@@ -25,14 +26,23 @@ def main():
     n_ancilla_qubits = config['model']['n_ancilla_qubits']
 
     # Entrena varios modelos variando el n ancilla qubits
-    values = list(range(1, 15))
-    for n_backward_layers in values:
-        print(f"---TRAINING WITH n_backward_layers={n_backward_layers}---")
-        # Initialize model
-        model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
+    values = list(range(7, 17))
+    for n_ancilla_qubits in values:
+        print(f"---TRAINING WITH n_ancilla_qubits={n_ancilla_qubits}---")
 
-        trainer = Trainer(model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
-        trainer.train()
+        try:
+            # Initialize model
+            model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
+
+            trainer = Trainer(model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
+            trainer.train()
+
+        except torch.cuda.OutOfMemoryError:
+            # Clear cache to prevent the next trial from failing immediately
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
+            print(f"Trial {n_ancilla_qubits} failed: OOM with na={n_ancilla_qubits}.")
 
 
 
@@ -64,6 +74,26 @@ class Trainer():
             'loss': [],
         }
 
+    def _get_loss_fn(self):
+        loss_type = self.config['training'].get('loss_fn', 'wass')
+        if loss_type == 'sinkhorn':
+            return partial(sinkhornDistance, reg=self.config['training']['regularization'])
+        return WassDistance
+    
+    def _get_lr_scheduler(self):
+        config_lr_scheduler = self.config['training'].get('lr_scheduler', 'None')
+
+        if config_lr_scheduler['type'] == 'CosineAnnealingWarmRestarts':
+            T_0 = config_lr_scheduler.get('T_0', 50)
+            T_mult = config_lr_scheduler.get('T_mult', 2)
+            return partial(torch.optim.lr_scheduler.CosineAnnealingWarmRestarts, T_0=T_0, T_mult=T_mult)
+        
+        elif config_lr_scheduler['type'] == 'ctt':
+            return None
+        
+        else:
+            raise NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
+
     def train(self):
         n_data = self.n_data
         n_pixels = self.n_pixels
@@ -92,13 +122,14 @@ class Trainer():
             # input_tplus1 = self.model.prepareInput_t(inputs_last_timestep, params_tot, t, n_data)
             states_diffused = self.model.states_diff
             input_tplus1 = torch.zeros((n_data, 2**(self.n_qubits + self.n_ancilla_qubits)), device=self.device).cfloat()
-            input_tplus1[:,:2**self.n_qubits] = states_diffused[t+1]
+            input_tplus1[:,:2**self.n_qubits] = states_diffused[t]
 
         # initialize parameters
         np.random.seed()
         params_t = torch.tensor(np.random.normal(size=2 * self.model.n_tot * self.model.L), device=self.device, requires_grad=True)
         optimizer = torch.optim.Adam([params_t], lr=lr)
-        lr_scheduler =  torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=2)
+        lr_scheduler =  self._get_lr_scheduler()(optimizer)
+        loss_fn = self._get_loss_fn()
         loss_hist = []
 
         t0 = time.time()
@@ -109,7 +140,7 @@ class Trainer():
             true_data = states_diffused[t, indices]
 
             output_t = self.model.backwardOutput_t(input_tplus1, params_t)
-            loss = WassDistance(output_t, true_data)
+            loss = loss_fn(output_t, true_data)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()

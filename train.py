@@ -16,17 +16,17 @@ def main():
     torch.set_default_device(device)
 
     n_data = config['dataset']['maxsize'] # EDITABLE
-    n_pixels = config['dataset']['transforms']['resize']**2 # EDITABLE
+    n_features = 2 #config['dataset']['transforms']['resize']**2 # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
 
-    _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
+    _, n_qubits = find_closest_power_of_2(n_features, return_power=True)
     n_backward_layers = config['model']['n_backward_layers']
     n_ancilla_qubits = config['model']['n_ancilla_qubits']
 
     # Initialize model
     model = QDDPM(n_qubits, n_ancilla_qubits, n_timesteps, n_backward_layers, device=device).to(device)
 
-    trainer = Trainer(model, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
+    trainer = Trainer(model, config, n_data, n_features, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers)
     trainer.train()
 
 

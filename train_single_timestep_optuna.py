@@ -12,10 +12,10 @@ import yaml
 import time
 import optuna
 
-TIMESTEP = 12
+TIMESTEP = 40
 
 def main():
-    config = yaml.safe_load(open('config_debug.yaml', 'r'))
+    config = yaml.safe_load(open('config.yaml', 'r'))
     print("")
     device = set_device(config.get('device', 'cpu'))
     torch.set_default_device(device)
@@ -142,7 +142,7 @@ class QuantumDiffusionArchitect():
             with torch.no_grad():
                 states_diffused = model.states_diff
                 input_tplus1 = torch.zeros((self.n_data, 2**(self.n_qubits + na_t)), device=self.device).cfloat()
-                input_tplus1[:,:2**self.n_qubits] = states_diffused[t+1]
+                input_tplus1[:,:2**self.n_qubits] = states_diffused[t]
 
 
             # initialize parameters
