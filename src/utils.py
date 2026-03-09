@@ -26,7 +26,7 @@ def get_path(config, type='qstates', **kwargs):
     if type == 'initialqstates':
         datasetname = dataset_config['name']
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'initialqstates'
-        filename = f"initialqstates_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_pixels']}_n{kwargs['n_qubits']}.npy"
+        filename = f"initialqstates_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}.npy"
     
     elif type == 'diffusedqstates':
         datasetname = dataset_config['name']
