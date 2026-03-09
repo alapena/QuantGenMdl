@@ -9,17 +9,19 @@ def main():
     config = yaml.safe_load(open('config.yaml', 'r'))
     dataset_config = config['dataset']
 
-    dataset = get_dataset(dataset_config)
+    dataset = get_dataset(config)
 
-    # In order to move to np arrays...
-    batch_size = dataset_config.get('batch_size', len(dataset))
-    dataset = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    dataset = next(iter(dataset))[0]
+    if dataset_config["name"] != "CIRCLEY":
+        # In order to move to np arrays...
+        batch_size = dataset_config.get('batch_size', len(dataset))
+        dataset = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataset = next(iter(dataset))[0]
 
-    # Generate the quantum states corresponding to the dataset
-    dataset = dataset.reshape(dataset.shape[0], -1) # Reshape to [n_data, n_pixels]
-    dataset = np.array(dataset, dtype=np.complex64)
-    dataset = dataset / np.linalg.norm(dataset, axis=1, keepdims=True) # Ensure normalization
+        # Generate the quantum states corresponding to the dataset
+        dataset = dataset.reshape(dataset.shape[0], -1) # Reshape to [n_data, n_pixels]
+        dataset = np.array(dataset, dtype=np.complex64)
+        dataset = dataset / np.linalg.norm(dataset, axis=1, keepdims=True) # Ensure normalization
+        
     # Fill the rest of the states with zeroes.
     n_data = dataset.shape[0]
     n_pixels = dataset.shape[1]
@@ -42,13 +44,14 @@ def main():
 ######################################################################
 
 
-def get_dataset(dataset_config, verbose=True):
+def get_dataset(config, verbose=True):
     '''
     Docstring for get_dataset. It must return a torch.utils.data.Dataset object.
     
     :param dataset_config: Description
     :param verbose: Description
     '''
+    dataset_config = config["dataset"]
     # Get the transforms from the config.
     transforms_config = dataset_config.get('transforms', None)
     if transforms_config is None:
@@ -86,6 +89,11 @@ def get_dataset(dataset_config, verbose=True):
         indices = indices[:maxsize]
         dataset = Subset(dataset, indices)
 
+    elif dataset_config['name'] == 'CIRCLEY':
+        size = dataset_config['maxsize']
+        size = size if size is not None else 60000
+        dataset = circleYGen(size, config.get('seed', None))
+
     else:
         raise NotImplementedError(f"Dataset {dataset_config['name']} not implemented.")
 
@@ -93,6 +101,16 @@ def get_dataset(dataset_config, verbose=True):
         print(f"Loaded dataset {dataset_config['name']} with {len(dataset)} samples.")
 
     return dataset # Shape [n_data, 1, n_pixels, n_pixels]
+
+def circleYGen(N_train, seed=None):
+    '''
+    generate random quantum states from RY(\phi)|0>
+    assume uniform distribution
+    '''
+    np.random.seed(seed)
+    phis = np.random.uniform(0, 2*np.pi, N_train)
+    states = np.vstack((np.cos(phis), np.sin(phis))).T
+    return states.astype(np.complex64)
 
 if __name__ == "__main__":
     main()
