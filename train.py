@@ -16,7 +16,7 @@ def main():
     torch.set_default_device(device)
 
     n_data = config['dataset']['maxsize'] # EDITABLE
-    n_features = 2 #config['dataset']['transforms']['resize']**2 # EDITABLE
+    n_features = config['dataset']['transforms']['resize']**2 # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
 
     _, n_qubits = find_closest_power_of_2(n_features, return_power=True)
