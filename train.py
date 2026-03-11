@@ -1,6 +1,6 @@
 from src.utils import get_path, find_closest_power_of_2, set_device
 from src.QDDPM_torch_angel import DiffusionModel, QDDPM, WassDistance, sinkhornDistance
-from plotly.subplots import make_subplots
+from src.plot import Plotter
 from tqdm import tqdm
 from functools import partial
 import numpy as np
@@ -39,13 +39,13 @@ def main():
 ######################################################################
 
 class Trainer():
-    def __init__(self, model: QDDPM, config, n_data, n_pixels, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers):
+    def __init__(self, model: QDDPM, config, n_data, n_features, n_timesteps, n_qubits, n_ancilla_qubits, n_backward_layers):
         self.model = model
         self.config = config
         self.device = model.device
 
         self.n_data = n_data
-        self.n_pixels = n_pixels
+        self.n_features = n_features
         self.n_timesteps = n_timesteps
 
         self.n_qubits = n_qubits
@@ -57,16 +57,52 @@ class Trainer():
         self.n_params = 2 * self.model.n_tot * self.model.L
         self.loss_fn = self.config['training'].get('loss_fn', 'wass')
 
-    def train(self):
-        dir, filename = get_path(self.config, type='config', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
+        self.plotter = Plotter()
+
+    def _get_loss_fn(self):
+        loss_type = self.config['training'].get('loss_fn', 'wass')
+        if loss_type == 'sinkhorn':
+            return partial(sinkhornDistance, reg=self.config['training']['regularization'])
+        elif loss_type == 'wass'
+            return WassDistance
+        else:
+            raise NotImplementedError('Loss function {loss_type} not implemented.')
+    
+    def _get_lr_scheduler(self):
+        config_lr_scheduler = self.config['training'].get('lr_scheduler', 'None')
+        if config_lr_scheduler['type'] == 'CosineAnnealingWarmRestarts':
+            T_0 = config_lr_scheduler.get('T_0', 50)
+            T_mult = config_lr_scheduler.get('T_mult', 2)
+            return partial(torch.optim.lr_scheduler.CosineAnnealingWarmRestarts, T_0=T_0, T_mult=T_mult)
+        elif config_lr_scheduler['type'] == 'ctt':
+            return NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
+        else:
+            raise NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
+
+    def _check_pretrained_params(self, t):
+        '''
+        Checks if there are existing parameters for the given timestep t, to avoid re-training them.
+        '''
+        if not self.config["training"]["overwrite_saves"]:
+            return False
+        dir, filename = get_path(self.config, type='bestparams.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
+        path = dir/filename
+        return path.exists()
+
+    def _save_config(self):
+        dir, filename = get_path(self.config, type='config.yaml', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
         with open(dir/filename, 'w') as file:
             yaml.dump(self.config, file, default_flow_style=False, sort_keys=False)
+
+
+    def train(self):
+        self._save_config()
 
         learning_rate = self.config['training']['learning_rate']
         diffusion_schedule = self.config['model'].get('diffusion_schedule', None)
 
         # Load diffused states
-        dir, filename = get_path(self.config, type='diffusedqstates', diffusion_schedule=diffusion_schedule, n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
         states_diffused = np.load(dir / filename) # Must be numpy array
 
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
@@ -75,14 +111,18 @@ class Trainer():
         self.model.train()
         for t in range(self.n_timesteps, 0, -1): # From T to 1
             print(f"--- Training timestep {t} ---")
+            if self._check_pretrained_params(): 
+                print("Found already trained parameters. Skipping this timestep...")
+                continue
+
             params_tot = torch.zeros((self.n_timesteps, 2*(self.n_qubits+self.n_ancilla_qubits)*self.n_backward_layers), device=self.device)
             if t < self.n_timesteps:
                 for tt in range(t+1, self.n_timesteps+1):
-                    dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
+                    dir, filename = get_path(self.config, type='bestparams.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
                     params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
             params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, self.n_data, learning_rate)
 
-            self.save_results(params.detach().cpu(), loss_hist, t, last_epoch=True)
+            self.save_results_t(params.detach().cpu(), loss_hist, t, last_epoch=True)
 
     
     def train_timestep_t(self, t, inputs_last_timestep, params_tot, n_data, lr):
@@ -90,9 +130,6 @@ class Trainer():
             'lr': [],
             'loss': [],
         }
-
-        # To save the gradients
-        self.grad_history_np = np.zeros((self.n_epochs, self.n_params), dtype=np.float32)
         
         # Prepare input
         input_tplus1 = self.model.prepareInput_t(inputs_last_timestep, params_tot, t, n_data)
@@ -140,7 +177,7 @@ class Trainer():
 
             # Check if current step is best
             if len(loss_hist) == 0 or loss_value < min(loss_hist):
-                self.save_results(params_t.detach().cpu(), loss_hist, t, verbose=False)
+                self.save_results_t(params_t.detach().cpu(), loss_hist, t, verbose=False)
                 last_save = epoch
 
             # Save and plot stats
@@ -149,73 +186,33 @@ class Trainer():
             loss_hist.append(loss_value) # record the current loss
             
             if self.config['training']['live_plot'] and epoch%50 == 0:
-                self.plot_loss(t)
+                fig = self.plotter.plot_loss(t, history=self.history)
+                dir, filename = get_path(self.config, type='lossplot.html', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+                fig.write_html(str(dir/filename))
 
         return params_t, torch.stack(loss_hist)
     
-    def save_results(self, params, loss_hist, t, prefix='', last_epoch=False, verbose=True):
-            
-        if not last_epoch:
-            dir, filename = get_path(self.config, type='modelparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
-            np.save(dir / (prefix+filename), params)
+    def save_results_t(self, params, loss_hist, t, verbose=True):
+        dir, filename = get_path(self.config, type='bestparams.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+        np.save(dir/filename, params)
+        if verbose:
+            print(f"Saved parameters at {dir/filename}.")
 
-            if verbose:
-                print(f"Saved parameters at {dir/(prefix+filename)}.")
+        dir, filename = get_path(self.config, type='bestlosshist.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+        np.save(dir/filename, loss_hist)
 
-            dir, filename = get_path(self.config, type='modellosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
-            np.save(dir / (prefix+filename), loss_hist)
 
-        else:
-            dir, filename = get_path(self.config, type='modelfinalparams', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
-            np.save(dir / (prefix+filename), params)
+    def save_results_lastepoch(self, params, loss_hist, t, verbose=True):
+        dir, filename = get_path(self.config, type='finalparams.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+        np.save(dir / filename, params)
+        if verbose:
+            print(f"Saved parameters at {dir/filename}.")
 
-            if verbose:
-                print(f"Saved parameters at {dir/(prefix+filename)}.")
-
-            dir, filename = get_path(self.config, type='modelfinallosshist', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
-            np.save(dir / (prefix+filename), loss_hist)
+        dir, filename = get_path(self.config, type='finallosshist.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+        np.save(dir / filename, loss_hist)
 
     def save_grads(self, epoch, grads):
         pass
-
-    def plot_loss(self, t):
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
-
-        fig.add_trace(
-            go.Scatter(
-                y = self.history['loss'],
-                name = 'Loss'
-            ),
-            secondary_y=False
-        )
-
-        fig.add_trace(
-            go.Scatter(
-                y = self.history['lr'],
-                name = 'Learning rate',
-                line=dict(color="lightgreen", dash="solid"),
-            ),
-            secondary_y=True
-        )
-
-        fig.update_layout(
-            title = f'Loss plot of timestep {t}',
-            xaxis_title = 'Epoch',
-            yaxis = dict(
-                title = 'Loss'
-            ),
-            yaxis2 = dict(
-                title = 'Learning rate',
-                showgrid = False,
-                side = 'right',
-                type="log",
-                tickformat=".0e",
-            )
-        )
-
-        dir, filename = get_path(self.config, type='lossplot', n_data=self.n_data, n_pixels=self.n_pixels, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
-        fig.write_html(str(dir/filename))
-
 
 
 
