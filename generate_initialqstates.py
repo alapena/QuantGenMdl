@@ -11,7 +11,7 @@ def main():
 
     dataset = get_dataset(config)
 
-    if dataset_config["name"] != "CIRCLEY":
+    if dataset_config["name"] != "CIRCLEY" and dataset_config["name"] != "CIRCLEY2Q":
         # In order to move to np arrays...
         batch_size = dataset_config.get('batch_size', len(dataset))
         dataset = DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -24,13 +24,13 @@ def main():
         
     # Fill the rest of the states with zeroes.
     n_data = dataset.shape[0]
-    n_pixels = dataset.shape[1]
-    _, n_qubits = find_closest_power_of_2(n_pixels, return_power=True)
+    n_features = dataset.shape[1]
+    _, n_qubits = find_closest_power_of_2(n_features, return_power=True)
     dims_to_pad = 2**n_qubits-dataset.shape[1]
     dataset = np.pad(dataset, ((0,0), (0,dims_to_pad, 0)), 'constant', constant_values=0) if dims_to_pad > 0 else dataset
 
     # Save the generated quantum states
-    dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_pixels=n_pixels, n_qubits=n_qubits)
+    dir, filename = get_path(config, type='initialqstates.npy', n_data=n_data, n_features=n_features, n_qubits=n_qubits)
     np.save(dir / filename, dataset)
 
     print(f"Dataset saved in {dir / filename}")
@@ -94,6 +94,12 @@ def get_dataset(config, verbose=True):
         size = size if size is not None else 60000
         dataset = circleYGen(size, config.get('seed', None))
 
+    elif dataset_config['name'] == 'CIRCLEY2Q':
+        size = dataset_config['maxsize']
+        size = size if size is not None else 60000
+        n_qubits = 2
+        dataset = ndim_circleYGen(size, n_qubits, config.get('seed', None))
+
     else:
         raise NotImplementedError(f"Dataset {dataset_config['name']} not implemented.")
 
@@ -111,6 +117,21 @@ def circleYGen(N_train, seed=None):
     phis = np.random.uniform(0, 2*np.pi, N_train)
     states = np.vstack((np.cos(phis), np.sin(phis))).T
     return states.astype(np.complex64)
+
+def ndim_circleYGen(N_data, n_qubits, seed=None):
+    # Generate a circular state in each qubit. Then tensor product them.
+    np.random.seed(seed)
+    phis = np.random.uniform(0, 2*np.pi, (N_data, n_qubits))
+    cos = np.cos(phis) # [N_data, n_qubits]
+    sin = np.sin(phis)
+    components = np.stack((cos, sin), axis=-1) # [N_data, n_qubits, 2]
+
+    res = components[:, 0, :] # [N_data, 2] we selected first qubit
+    for i in range(1, n_qubits):
+        res = (res[..., None] * components[:, i, None, :]).reshape(N_data, -1)
+
+    return res.astype(np.complex64)
+
 
 if __name__ == "__main__":
     main()

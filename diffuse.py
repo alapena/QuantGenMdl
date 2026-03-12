@@ -16,10 +16,10 @@ def main():
 
     # Load the states
     n_data = dataset_config['maxsize'] # EDITABLE
-    n_features = 2 #int(np.square(dataset_config['transforms']['resize'])) # EDITABLE
+    n_features = 4 #int(np.square(dataset_config['transforms']['resize'])) # EDITABLE
     _, n_qubits = find_closest_power_of_2(n_features, return_power=True)
 
-    dir, filename = get_path(config, type='initialqstates', n_data=n_data, n_features=n_features, n_qubits=n_qubits) # Editable
+    dir, filename = get_path(config, type='initialqstates.npy', n_data=n_data, n_features=n_features, n_qubits=n_qubits) # Editable
     dataset = torch.from_numpy(np.load(dir / filename)).to(device)
 
     # Initialize the model
@@ -72,7 +72,7 @@ def main():
         # states[t] = states[t] / np.linalg.norm(states[t], axis=1, keepdims=True) # Avoid numerical errors
         states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
 
-    dir, filename = get_path(config, type='diffusedqstates', diffusion_schedule=diffusion_schedule, n_data=n_data, n_pixels=n_features, n_qubits=n_qubits, n_timesteps=n_timesteps)
+    dir, filename = get_path(config, type='diffusedqstates.npy', diffusion_schedule=diffusion_schedule, n_data=n_data, n_features=n_features, n_qubits=n_qubits, n_timesteps=n_timesteps)
     np.save(dir / filename, states.detach().cpu().numpy())
 
     print(f"Saved diffused quantum states in {dir / filename}")

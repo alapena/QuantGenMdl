@@ -64,7 +64,7 @@ class QDDPMBasicTrainer():
         dir, filename = get_path(self.config, type='bestparams.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
         np.save(dir/filename, params)
         if verbose:
-            print(f"Saved parameters at {dir/filename}.")
+            print(f"Saved parameters at {dir/filename}.\nCorresponding loss: {loss_hist[-1]:.5f}.")
 
         dir, filename = get_path(self.config, type='bestlosshist.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
         np.save(dir/filename, loss_hist)
@@ -73,7 +73,7 @@ class QDDPMBasicTrainer():
         dir, filename = get_path(self.config, type='finalparams.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
         np.save(dir / filename, params)
         if verbose:
-            print(f"Saved parameters at {dir/filename}.")
+            print(f"Saved parameters at {dir/filename}.\nCorresponding loss: {loss_hist[-1]:.5f}.")
 
         dir, filename = get_path(self.config, type='finallosshist.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
         np.save(dir / filename, loss_hist)

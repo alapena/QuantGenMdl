@@ -125,7 +125,7 @@ def get_path(config: Dict, type: str = 'qstates', new_subfolder: str = None, suf
     #     filename = f"results.yaml"
 
     else:
-        raise NotImplementedError(f"Path type '{type}' not implemented.")
+        raise NotImplementedError(f"Path type {type} not implemented.")
 
     
     # Append a new folder at the end of the directory if specified:

@@ -17,7 +17,7 @@ def main():
     torch.set_default_device(device)
 
     n_data = config['dataset']['maxsize'] # EDITABLE
-    n_features = config['dataset']['transforms']['resize']**2 # EDITABLE
+    n_features = 4 #config['dataset']['transforms']['resize']**2 # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
 
     trainer = QDDPMTrainer(config, n_data, n_features, n_timesteps, device=device)
@@ -36,25 +36,43 @@ class QDDPMTrainer(QDDPMBasicTrainer):
     def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
         super().__init__(config, n_data, n_features, n_timesteps, device=device)
 
+        self.learning_rate = self.config['training']['learning_rate']
+        self.diffusion_schedule = self.config['model']['diffusion_schedule']
+
     def _save_config_single_timestep(self, t):
         dir, filename = get_path(self.config, type='config.yaml', suffix=f'_t{t}', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
         with open(dir/filename, 'w') as file:
             yaml.dump(self.config, file, default_flow_style=False, sort_keys=False)
 
     def train_single_timestep(self, t):
+        '''(Must exist the previous timesteps trained parameters)'''
         self._save_config_single_timestep(t)
+
+        # Load diffused states
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        states_diffused = np.load(dir / filename) # Must be numpy array
+        self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
+        inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
+
+        self.model.train()
+        print(f"--- Training timestep {t} ---")
+        params_tot = torch.zeros((self.n_timesteps, 2*(self.n_qubits+self.n_ancilla_qubits)*self.n_backward_layers), device=self.device)
+        if t < self.n_timesteps:
+            for tt in range(t+1, self.n_timesteps+1):
+                dir, filename = get_path(self.config, type='bestparams.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
+                params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
+        params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, self.n_data, self.learning_rate)
+
+        self._save_results_t(params.detach().cpu(), loss_hist, t, last_epoch=True)
+        
 
     
     def train_all_timesteps(self):
         self._save_config()
 
-        learning_rate = self.config['training']['learning_rate']
-        diffusion_schedule = self.config['model']['diffusion_schedule']
-
         # Load diffused states
-        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
         states_diffused = np.load(dir / filename) # Must be numpy array
-
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
         inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
 
@@ -70,9 +88,9 @@ class QDDPMTrainer(QDDPMBasicTrainer):
                 for tt in range(t+1, self.n_timesteps+1):
                     dir, filename = get_path(self.config, type='bestparams.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=tt)
                     params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
-            params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, self.n_data, learning_rate)
+            params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, self.n_data, self.learning_rate)
 
-            self.save_results_t(params.detach().cpu(), loss_hist, t, last_epoch=True)
+            self._save_results_t(params.detach().cpu(), loss_hist, t)
 
     
     def train_timestep_t(self, t, inputs_last_timestep, params_tot, n_data, lr):
@@ -118,7 +136,7 @@ class QDDPMTrainer(QDDPMBasicTrainer):
 
             # Check if current step is best
             if len(loss_hist) == 0 or loss_value < min(loss_hist):
-                self.save_results_t(params_t.detach().cpu(), loss_hist, t, verbose=False)
+                self._save_results_t(params_t.detach().cpu(), loss_hist, t, verbose=False)
                 last_save = epoch
 
             # Save and plot stats
