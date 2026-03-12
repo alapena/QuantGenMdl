@@ -1,7 +1,7 @@
 from pathlib import Path
 import numpy as np
 import torch
-from typing import Dict, String
+from typing import Dict
 
 def set_device(device='cpu', verbose=True):
     if device != 'cpu' and torch.cuda.is_available():
@@ -14,7 +14,7 @@ def set_device(device='cpu', verbose=True):
 
     return device
 
-def get_path(config: Dict, type: String = 'qstates', new_subfolder: String = None, **kwargs):
+def get_path(config: Dict, type: str = 'qstates', new_subfolder: str = None, suffix: str = None, **kwargs):
     dataset_config = config['dataset']
 
     if type == 'initialqstates.npy':
@@ -133,6 +133,11 @@ def get_path(config: Dict, type: String = 'qstates', new_subfolder: String = Non
         parts = list(dir.parts)
         parts.insert(-1, new_subfolder)
         dir = Path(*parts)
+
+    # Append a suffix before the extension of the filename
+    if suffix is not None:
+        parts = filename.split('.')
+        filename = f"{parts[0]}_{suffix}.{parts[1]}"
     
     dir.mkdir(parents=True, exist_ok=True)
     return dir, filename

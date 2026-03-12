@@ -8,7 +8,7 @@ model:
   n_ancilla_qubits: 4 # na
   seed: 0 # The seed for the HaarSampleGeneration
 training:
-  overwrite_saves: False
+  overwrite_saves: True
   batch_size: null # If null, it will be set to the size of the training dataset
   n_epochs: 5001 # Epochs for training each time step
   learning_rate: 0.005
@@ -17,7 +17,9 @@ training:
     T_0: 50
     T_mult: 2
   regularization: 0.03
-  live_plot: False
+  live_plot:
+    save: False
+    frequency: 50
   save_grads: False
   seed: 0 # Seed for optuna
   loss_fn: 'sinkhorn' # 'sinkhorn', 'wass'
