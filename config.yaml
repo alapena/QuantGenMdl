@@ -4,11 +4,11 @@ model:
   n_timesteps: 40 # Number of time steps T
   diffusion_schedule:
     name: 'linear' # 'linear'
-    slope: 1.5
+    slope: 0.36
   n_backward_layers: 6 # L
   n_ancilla_qubits: 2 # na
 training:
-  overwrite_saves: True
+  overwrite_saves: False
   batch_size: null # If null, it will be set to the size of the training dataset
   n_epochs: 5001 # Epochs for training each time step
   learning_rate: 0.005
