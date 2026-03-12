@@ -142,6 +142,20 @@ def get_path(config: Dict, type: str = 'qstates', new_subfolder: str = None, suf
     dir.mkdir(parents=True, exist_ok=True)
     return dir, filename
 
+
+def get_diffusion_weights(config, device='cpu'):
+    # Un diffusion schedule viene determinado por 1. El dataset type, 2. El dataset como tal (n_data, n_features y n_qubits).
+    diffusion_schedule_name = config["model"]["diffusion_schedule"]["name"]
+    n_timesteps = config["model"]["n_timesteps"]
+
+    if diffusion_schedule_name == "linear":
+        slope = config["model"]["diffusion_schedule"]["slope"]
+        diffusion_weights = 1/(n_timesteps+1) * torch.linspace(1., slope*torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
+    else:
+        raise NotImplementedError(f'Diffusion schedule {diffusion_schedule_name} not implemented.')
+
+    return diffusion_weights
+
 def get_n_qubits_from_data(data):
     n_pixels = data.reshape(-1).shape[0]
     n_qubits = np.int(np.ceil(np.log2(n_pixels)))

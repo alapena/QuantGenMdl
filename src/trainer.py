@@ -1,5 +1,7 @@
-from src.utils import get_path, find_closest_power_of_2
-from src.QDDPM_torch_angel import QDDPM, WassDistance, sinkhornDistance
+from tqdm import tqdm
+
+from src.utils import get_diffusion_weights, get_path, find_closest_power_of_2
+from src.QDDPM_torch_angel import QDDPM, DiffusionModel, WassDistance, sinkhornDistance
 from src.plot import Plotter
 from functools import partial
 import numpy as np
@@ -77,3 +79,39 @@ class QDDPMBasicTrainer():
 
         dir, filename = get_path(self.config, type='finallosshist.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
         np.save(dir / filename, loss_hist)
+
+
+
+class QDDPMDiffuser():
+    def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
+        self.config = config
+        self.device = device
+
+        self.n_data = n_data
+        self.n_features = n_features
+        self.n_timesteps = n_timesteps
+
+        self.diffusion_schedule_name = self.config["model"]["diffusion_schedule"]["name"]
+        self.diffusion_schedule_slope = self.config["model"]["diffusion_schedule"]["slope"]
+        _, self.n_qubits = find_closest_power_of_2(n_features, return_power=True)
+    
+    def diffuse(self):
+        dir, filename = get_path(self.config, type='initialqstates.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits) # Editable
+        dataset = torch.from_numpy(np.load(dir / filename)).to(self.device)
+        model = DiffusionModel(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
+        diffusion_weights = get_diffusion_weights(self.config, self.device)
+
+        states = torch.zeros((self.n_timesteps+1, self.n_data, 2**self.n_qubits), device=self.device, dtype=torch.complex64)
+        states[0] = dataset
+        for t in tqdm(range(1, self.n_timesteps+1)):
+            states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
+            # states[t] = states[t] / np.linalg.norm(states[t], axis=1, keepdims=True) # Avoid numerical errors
+            states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
+
+        name = self.diffusion_schedule_name + self.diffusion_schedule_slope
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=name, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        np.save(dir / filename, states.detach().cpu().numpy())
+
+        print(f"Saved diffused quantum states in {dir / filename}")
+
+

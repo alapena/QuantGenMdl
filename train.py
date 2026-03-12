@@ -1,7 +1,7 @@
 from src.utils import get_path, find_closest_power_of_2, set_device
 from src.QDDPM_torch_angel import DiffusionModel, QDDPM, WassDistance, sinkhornDistance
 from src.plot import Plotter
-from src.trainer import QDDPMBasicTrainer
+from src.trainer import QDDPMBasicTrainer, QDDPMDiffuser
 from tqdm import tqdm
 from functools import partial
 import numpy as np
@@ -19,7 +19,7 @@ def main():
     n_data = config['dataset']['maxsize'] # EDITABLE
     n_features = 4 #config['dataset']['transforms']['resize']**2 # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
-
+    
     trainer = QDDPMTrainer(config, n_data, n_features, n_timesteps, device=device)
     trainer.train_all_timesteps()
     # trainer.train_single_timestep(t=40)
@@ -39,6 +39,28 @@ class QDDPMTrainer(QDDPMBasicTrainer):
 
         self.learning_rate = self.config['training']['learning_rate']
         self.diffusion_schedule = self.config['model']['diffusion_schedule']
+
+    def _generate_diffusedstates_and_get_path(self):
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        path = dir/filename
+        if path.exists():
+            return path
+        else:
+            print("Forward diffused states not found. Generating them...")
+
+            # Check if initial states exist
+            dir, filename = get_path(self.config, type='initialqstates.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits)
+            path = dir/filename
+            if not path.exists():
+                # Generate initial states
+                print("Initial quantum states not found. Generating them...")
+                pass
+
+            # Everything checked. Diffuse.
+            diffuser = QDDPMDiffuser(self.config, self.n_data, self.n_features, self.n_timesteps, device=self.device)
+            diffuser.diffuse()
+            dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+            return dir/filename
 
     def _save_config_single_timestep(self, t):
         dir, filename = get_path(self.config, type='config.yaml', suffix=f'_t{t}', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
@@ -73,6 +95,7 @@ class QDDPMTrainer(QDDPMBasicTrainer):
 
         # Load diffused states
         dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        path = self._generate_diffusedstates_and_get_path()
         states_diffused = np.load(dir / filename) # Must be numpy array
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
         inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
