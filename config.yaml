@@ -3,7 +3,7 @@ seed: 0
 model:
   n_timesteps: 40 # Number of time steps T
   diffusion_schedule:
-    name: 'linear' # 'linear', 'quadratic', 'pow6', 'pow{n}', 'powint{n}', 'linT', 'lin2T', 'lin3T, 'lin2T+2', 'lin2.5T', 'linear1'
+    name: 'linear' # 'linear'
     slope: 1.5
   n_backward_layers: 6 # L
   n_ancilla_qubits: 2 # na
@@ -23,7 +23,7 @@ training:
   loss_fn: 'sinkhorn' # 'sinkhorn', 'wass'
 dataset:
   dir: 'data' # Directory to store the dataset
-  name: 'CIRCLEY3' # e.g. 'MNIST_0', 'CIRCLEY_3'
+  name: 'CIRCLEY_3' # e.g. 'MNIST_0', 'CIRCLEY_3'
   # transforms:
   #   resize: 16 # nxn pixels to resize.
   maxsize: 1000

@@ -218,7 +218,7 @@ def get_dataset(config, verbose=True):
         size = dataset_config['maxsize']
         size = size if size is not None else 60000
         n_qubits = parts[1]
-        dataset = _ndim_circleYGen(size, n_qubits, config.get('seed', None))
+        dataset = _ndim_circleYGen(size, int(n_qubits), config.get('seed', None))
 
     else:
         raise NotImplementedError(f"Dataset type {type} not implemented.")

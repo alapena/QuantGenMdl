@@ -1,16 +1,16 @@
 device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 seed: 0
 model:
-  n_timesteps: 40 # Number of time steps T
-  # max_diffusion_weight: 4.0 # Maximum value of the diffusion weight (diff_hs in the repo code, where 4.0 is default)
-  diffusion_schedule: 'linear1' # 'linear', 'quadratic', 'pow6', 'pow{n}', 'powint{n}', 'linT', 'lin2T', 'lin3T, 'lin2T+2', 'lin2.5T'
+  n_timesteps: 2 # Number of time steps T
+  diffusion_schedule:
+    name: 'linear' # 'linear'
+    slope: 1.5
   n_backward_layers: 6 # L
-  n_ancilla_qubits: 4 # na
-  seed: 0 # The seed for the HaarSampleGeneration
+  n_ancilla_qubits: 2 # na
 training:
   overwrite_saves: True
   batch_size: null # If null, it will be set to the size of the training dataset
-  n_epochs: 1 # Epochs for training each time step
+  n_epochs: 2 # Epochs for training each time step
   learning_rate: 0.005
   lr_scheduler: 
     type: 'CosineAnnealingWarmRestarts' # 'CosineAnnealingWarmRestarts', 'ctt',
@@ -20,12 +20,11 @@ training:
   live_plot:
     save: False
     frequency: 50
-  seed: 0 # Seed for optuna
   loss_fn: 'sinkhorn' # 'sinkhorn', 'wass'
 dataset:
   dir: 'data' # Directory to store the dataset
-  name: 'MNIST1' # 'MNIST', 'MNIST0', 'MNIST1', 'CIRCLEY'
-  transforms:
-    resize: 16 # nxn pixels to resize.
-  maxsize: 1000
+  name: 'CIRCLEY_4' # e.g. 'MNIST_0', 'CIRCLEY_3'
+  # transforms:
+  #   resize: 16 # nxn pixels to resize.
+  maxsize: 10
   

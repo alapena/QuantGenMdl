@@ -11,14 +11,15 @@ import yaml
 import time
 
 def main():
-    config = yaml.safe_load(open('config.yaml', 'r'))
+    config = yaml.safe_load(open('config_debug.yaml', 'r'))
     print("")
     device = set_device(config.get('device', 'cpu'))
     torch.set_default_device(device)
 
     n_data = config['dataset']['maxsize'] # EDITABLE
-    n_features = 4 #config['dataset']['transforms']['resize']**2 # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
+    n_qubits = int(config['dataset']['name'].split('_')[1])
+    n_features = 2**n_qubits #config['dataset']['transforms']['resize']**2 # EDITABLE
     
     trainer = QDDPMTrainer(config, n_data, n_features, n_timesteps, device=device)
     trainer.train_all_timesteps()
@@ -38,10 +39,10 @@ class QDDPMTrainer(QDDPMBasicTrainer):
         super().__init__(config, n_data, n_features, n_timesteps, device=device)
 
         self.learning_rate = self.config['training']['learning_rate']
-        self.diffusion_schedule = self.config['model']['diffusion_schedule']
+        self.diffusion_schedule_nickname = self.config['model']['diffusion_schedule']['name'] + str(self.config['model']['diffusion_schedule']['slope'])
 
     def _generate_diffusedstates_and_get_path(self):
-        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
         path = dir/filename
         if path.exists():
             return path
@@ -60,7 +61,7 @@ class QDDPMTrainer(QDDPMBasicTrainer):
             # Everything checked. Diffuse.
             diffuser = QDDPMDiffuser(self.config, self.n_data, self.n_features, self.n_timesteps, device=self.device)
             diffuser.diffuse()
-            dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+            dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
             return dir/filename
 
     def _save_config_single_timestep(self, t):
@@ -73,7 +74,7 @@ class QDDPMTrainer(QDDPMBasicTrainer):
         self._save_config_single_timestep(t)
 
         # Load diffused states
-        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
         states_diffused = np.load(dir / filename) # Must be numpy array
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
         inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
@@ -95,9 +96,9 @@ class QDDPMTrainer(QDDPMBasicTrainer):
         self._save_config()
 
         # Load diffused states
-        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
         path = self._generate_diffusedstates_and_get_path()
-        states_diffused = np.load(dir / filename) # Must be numpy array
+        states_diffused = np.load(path) # Must be numpy array
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
         inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
 
