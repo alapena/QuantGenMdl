@@ -10,7 +10,7 @@ model:
 training:
   overwrite_saves: True
   batch_size: null # If null, it will be set to the size of the training dataset
-  n_epochs: 5 # Epochs for training each time step
+  n_epochs: 1 # Epochs for training each time step
   learning_rate: 0.005
   lr_scheduler: 
     type: 'CosineAnnealingWarmRestarts' # 'CosineAnnealingWarmRestarts', 'ctt',

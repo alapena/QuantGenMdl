@@ -22,6 +22,7 @@ def main():
 
     trainer = QDDPMTrainer(config, n_data, n_features, n_timesteps, device=device)
     trainer.train_all_timesteps()
+    # trainer.train_single_timestep(t=40)
 
 
 
@@ -63,7 +64,7 @@ class QDDPMTrainer(QDDPMBasicTrainer):
                 params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
         params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, self.n_data, self.learning_rate)
 
-        self._save_results_t(params.detach().cpu(), loss_hist, t, last_epoch=True)
+        self._save_results_t(params.detach().cpu(), loss_hist, t)
         
 
     
@@ -90,7 +91,7 @@ class QDDPMTrainer(QDDPMBasicTrainer):
                     params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
             params, loss_hist = self.train_timestep_t(t, inputs_last_timestep, params_tot, self.n_data, self.learning_rate)
 
-            self._save_results_t(params.detach().cpu(), loss_hist, t)
+            self._save_results_lastepoch(params.detach().cpu(), loss_hist, t)
 
     
     def train_timestep_t(self, t, inputs_last_timestep, params_tot, n_data, lr):
