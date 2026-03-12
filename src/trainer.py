@@ -1,6 +1,6 @@
 from tqdm import tqdm
 
-from src.utils import get_diffusion_weights, get_path, find_closest_power_of_2
+from src.utils import get_dataset, get_diffusion_weights, get_path, find_closest_power_of_2
 from src.QDDPM_torch_angel import QDDPM, DiffusionModel, WassDistance, sinkhornDistance
 from src.plot import Plotter
 from functools import partial
@@ -105,7 +105,6 @@ class QDDPMDiffuser():
         states[0] = dataset
         for t in tqdm(range(1, self.n_timesteps+1)):
             states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
-            # states[t] = states[t] / np.linalg.norm(states[t], axis=1, keepdims=True) # Avoid numerical errors
             states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
 
         name = self.diffusion_schedule_name + self.diffusion_schedule_slope
@@ -115,3 +114,22 @@ class QDDPMDiffuser():
         print(f"Saved diffused quantum states in {dir / filename}")
 
 
+class QDDPMGeneratorInitialqstates():
+    def __init__(self, config):
+        self.config = config
+
+    def generate_initialqstates(self):
+        dataset = get_dataset(self.config)
+
+        # Fill the rest of the states with zeroes, to match the shape of our states with the dimensionality of our Hilbert space.
+        n_data = dataset.shape[0]
+        n_features = dataset.shape[1]
+        _, n_qubits = find_closest_power_of_2(n_features, return_power=True)
+        dims_to_pad = 2**n_qubits-dataset.shape[1]
+        dataset = np.pad(dataset, ((0,0), (0,dims_to_pad, 0)), 'constant', constant_values=0) if dims_to_pad > 0 else dataset
+        
+        # Save the generated quantum states
+        dir, filename = get_path(self.config, type='initialqstates.npy', n_data=n_data, n_features=n_features, n_qubits=n_qubits)
+        np.save(dir / filename, dataset)
+
+        print(f"Dataset saved in {dir / filename}")

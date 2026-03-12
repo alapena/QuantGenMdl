@@ -1,7 +1,7 @@
 from src.utils import get_path, find_closest_power_of_2, set_device
 from src.QDDPM_torch_angel import DiffusionModel, QDDPM, WassDistance, sinkhornDistance
 from src.plot import Plotter
-from src.trainer import QDDPMBasicTrainer, QDDPMDiffuser
+from src.trainer import QDDPMBasicTrainer, QDDPMDiffuser, QDDPMGeneratorInitialqstates
 from tqdm import tqdm
 from functools import partial
 import numpy as np
@@ -54,7 +54,8 @@ class QDDPMTrainer(QDDPMBasicTrainer):
             if not path.exists():
                 # Generate initial states
                 print("Initial quantum states not found. Generating them...")
-                pass
+                generator_initialqstates = QDDPMGeneratorInitialqstates(self.config)
+                generator_initialqstates.generate_initialqstates()
 
             # Everything checked. Diffuse.
             diffuser = QDDPMDiffuser(self.config, self.n_data, self.n_features, self.n_timesteps, device=self.device)

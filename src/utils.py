@@ -2,6 +2,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from typing import Dict
+from torch.utils.data import Subset, DataLoader
 
 def set_device(device='cpu', verbose=True):
     if device != 'cpu' and torch.cuda.is_available():
@@ -155,6 +156,77 @@ def get_diffusion_weights(config, device='cpu'):
         raise NotImplementedError(f'Diffusion schedule {diffusion_schedule_name} not implemented.')
 
     return diffusion_weights
+
+
+def get_dataset(config, verbose=True):
+    def _apply_torchvision_transforms(dataset_config):
+        from torchvision import transforms
+        transforms_config = dataset_config.get('transforms', None)
+        if transforms_config is None:
+            print("No transforms specified in config. Using default transforms.")
+            transforms_list = [transforms.ToTensor()]
+        else:
+            # Build the composed transforms based on the config
+            transforms_list = []
+            if 'resize' in transforms_config:
+                resize = transforms_config['resize']
+                transforms_list.append(transforms.Resize(resize))
+            transforms_list.append(transforms.ToTensor())
+        return transforms.Compose(transforms_list)
+
+    def _ndim_circleYGen(N_data, n_qubits, seed=None):
+        # Generate a circular state in each qubit. Then tensor product them.
+        np.random.seed(seed)
+        phis = np.random.uniform(0, 2*np.pi, (N_data, n_qubits))
+        cos = np.cos(phis) # [N_data, n_qubits]
+        sin = np.sin(phis)
+        components = np.stack((cos, sin), axis=-1) # [N_data, n_qubits, 2]
+
+        res = components[:, 0, :] # [N_data, 2] we selected first qubit
+        for i in range(1, n_qubits):
+            res = (res[..., None] * components[:, i, None, :]).reshape(N_data, -1)
+
+        return res.astype(np.complex64)
+
+
+    dataset_config = config["dataset"]
+    name = dataset_config["name"]
+    parts = name.split('_')
+    type = parts[0]
+    if type == 'MNIST':
+        from torchvision import datasets
+        transform = _apply_torchvision_transforms(dataset_config)
+        dir = dataset_config.get('dir', './data')
+        digit_str = parts[1] # ! CURRENTLY WE ONLY SUPPORT 1 DIGIT AT ONCE (e.g. '0' or '1', but not '01').
+
+        dataset = datasets.MNIST(root=dir, train=True, download=True, transform=transform)
+        indices = [i for i, (img, label) in enumerate(dataset) if label == digit_str]
+        maxsize = dataset_config.get('maxsize', len(dataset))
+        indices = indices[:maxsize]
+        dataset = Subset(dataset, indices)
+
+        # Cochinada para convertir a np arrays
+        batch_size = dataset_config.get('batch_size', len(dataset))
+        dataset = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataset = next(iter(dataset))[0]
+
+        dataset = dataset.reshape(dataset.shape[0], -1) # Reshape to [n_data, n_pixels]
+        dataset = np.array(dataset, dtype=np.complex64)
+        dataset = dataset / np.linalg.norm(dataset, axis=1, keepdims=True) # Ensure normalization
+
+    if type == 'CIRCLEY':
+        size = dataset_config['maxsize']
+        size = size if size is not None else 60000
+        n_qubits = parts[1]
+        dataset = _ndim_circleYGen(size, n_qubits, config.get('seed', None))
+
+    else:
+        raise NotImplementedError(f"Dataset type {type} not implemented.")
+
+    if verbose:
+        print(f"Loaded dataset {name} with {len(dataset)} samples.")
+    return dataset
+
 
 def get_n_qubits_from_data(data):
     n_pixels = data.reshape(-1).shape[0]

@@ -23,7 +23,7 @@ training:
   loss_fn: 'sinkhorn' # 'sinkhorn', 'wass'
 dataset:
   dir: 'data' # Directory to store the dataset
-  name: 'CIRCLEY2Q' # 'MNIST', 'MNIST0', 'MNIST1', 'CIRCLEY'
+  name: 'CIRCLEY3' # e.g. 'MNIST_0', 'CIRCLEY_3'
   # transforms:
   #   resize: 16 # nxn pixels to resize.
   maxsize: 1000
