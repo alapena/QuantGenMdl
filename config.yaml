@@ -8,7 +8,7 @@ model:
   n_backward_layers: 6 # L
   n_ancilla_qubits: 2 # na
 training:
-  overwrite_saves: False
+  overwrite_saves: True
   batch_size: null # If null, it will be set to the size of the training dataset
   n_epochs: 5001 # Epochs for training each time step
   learning_rate: 0.005

@@ -1,5 +1,5 @@
 from src.utils import get_path
-from trainers.basic_trainers import QDDPMBasicTrainer, QDDPMDiffuser, QDDPMGeneratorInitialqstates
+from src.trainers.basic_trainers import QDDPMBasicTrainer, QDDPMDiffuser, QDDPMGeneratorInitialqstates
 from tqdm import tqdm
 import numpy as np
 import torch
