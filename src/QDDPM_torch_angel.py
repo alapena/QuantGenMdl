@@ -120,9 +120,9 @@ class DiffusionModel(nn.Module):
 
         for tt in range(1, t+1):
             if self.n > 1:
-                states = self.scrambleCircuit_t_from_tminus1_vmap(t, inputs, phis, gs)
+                states = self.scrambleCircuit_t_from_tminus1_vmap(tt, inputs, phis, gs)
             else:
-                states = self.scrambleCircuit_t_from_tminus1_vmap(t, inputs, phis) # No RZZ gates
+                states = self.scrambleCircuit_t_from_tminus1_vmap(tt, inputs, phis) # No RZZ gates
 
         return states
 
