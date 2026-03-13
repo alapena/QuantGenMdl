@@ -152,6 +152,10 @@ def get_diffusion_weights(config, device='cpu'):
     if diffusion_schedule_name == "linear":
         slope = config["model"]["diffusion_schedule"]["slope"]
         diffusion_weights = 1/(n_timesteps+1) * torch.linspace(1., slope*torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
+
+    elif diffusion_schedule_name == "custom":
+        slope = config["model"]["diffusion_schedule"]["slope"]
+        diffusion_weights = 1/(n_timesteps+1) * slope * torch.linspace(1., torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
     else:
         raise NotImplementedError(f'Diffusion schedule {diffusion_schedule_name} not implemented.')
 

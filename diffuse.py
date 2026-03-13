@@ -1,4 +1,5 @@
 from src.QDDPM_torch_angel import DiffusionModel
+from src.trainers.basic_trainers import QDDPMDiffuser, QDDPMGeneratorInitialqstates
 from src.utils import get_path, set_device, find_closest_power_of_2
 from pathlib import Path
 from tqdm import tqdm
@@ -6,8 +7,6 @@ import numpy as np
 import torch
 import yaml
 import re
-
-from trainers.basic_trainers import QDDPMDiffuser, QDDPMGeneratorInitialqstates
 
 def main(config, n_data, n_features, n_timesteps, diffusion_schedule_nickname):
     # config = yaml.safe_load(open('config.yaml', 'r'))

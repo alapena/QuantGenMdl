@@ -29,6 +29,7 @@ class DiffusionModel(nn.Module):
         self.device=device
 
         self.scrambleCircuit_t_vmap = K.vmap(self.scrambleCircuit_t, vectorized_argnums=(1,2,3))
+        self.scrambleCircuit_t_from_tminus1_vmap = K.vmap(self.scrambleCircuit_t_from_tminus1, vectorized_argnums=(1,2,3))
     
     def HaarSampleGeneration(self, Ndata, seed):
         '''
@@ -67,6 +68,26 @@ class DiffusionModel(nn.Module):
                 for i, j in combinations(range(self.n), 2):
                     c.rzz(i, j, theta=gs[tt]/(2*np.sqrt(self.n)))
         return c.state()
+
+    def scrambleCircuit_t_from_tminus1(self, t, input, phis, gs=None):
+        '''
+        obtain the state through diffusion step t
+        Args:
+        t: diffusion step
+        input: the input quantum state, which is the output of step t-1
+        phis: the single-qubit rotation angles in diffusion circuit
+        gs: the angle of RZZ gates in diffusion circuit when n>=2
+        '''
+        c = tc.Circuit(self.n, inputs=input)
+        tt = t-1 # To match the indexing of phis and gs in scrambleCircuit_t
+        for i in range(self.n):
+            c.rz(i, theta=phis[3*self.n*tt+i])
+            c.ry(i, theta=phis[3*self.n*tt+self.n+i])
+            c.rz(i, theta=phis[3*self.n*tt+2*self.n+i])
+        if self.n >= 2:
+            for i, j in combinations(range(self.n), 2):
+                c.rzz(i, j, theta=gs[tt]/(2*np.sqrt(self.n)))
+        return c.state()
     
     def set_diffusionData_t(self, t, inputs, diff_hs, seed):
         '''
@@ -90,10 +111,18 @@ class DiffusionModel(nn.Module):
         #         states[i] = self.scrambleCircuit_t(t, inputs[i], phis[i], gs[i])
         #     else:
         #         states[i] = self.scrambleCircuit_t(t, inputs[i], phis[i])
-        if self.n > 1:
-            states = self.scrambleCircuit_t_vmap(t, inputs, phis, gs)
-        else:
-            states = self.scrambleCircuit_t_vmap(t, inputs, phis)
+
+        # Útil pero poco eficiente:
+        # if self.n > 1:
+        #     states = self.scrambleCircuit_t_vmap(t, inputs, phis, gs)
+        # else:
+        #     states = self.scrambleCircuit_t_vmap(t, inputs, phis)
+
+        for tt in range(1, t+1):
+            if self.n > 1:
+                states = self.scrambleCircuit_t_from_tminus1_vmap(t, inputs, phis, gs)
+            else:
+                states = self.scrambleCircuit_t_from_tminus1_vmap(t, inputs, phis) # No RZZ gates
 
         return states
 

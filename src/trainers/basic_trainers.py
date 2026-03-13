@@ -104,7 +104,8 @@ class QDDPMDiffuser():
         states = torch.zeros((self.n_timesteps+1, self.n_data, 2**self.n_qubits), device=self.device, dtype=torch.complex64)
         states[0] = dataset
         for t in tqdm(range(1, self.n_timesteps+1)):
-            states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
+            # states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
+            states[t] = model.set_diffusionData_t(t, states[t-1], diffusion_weights[:t], seed=t)
             states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
 
         name = self.diffusion_schedule_name + str(self.diffusion_schedule_slope)
