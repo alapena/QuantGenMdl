@@ -93,6 +93,8 @@ class QDDPMDiffuser():
 
         self.diffusion_schedule_name = self.config["model"]["diffusion_schedule"]["name"]
         self.diffusion_schedule_slope = self.config["model"]["diffusion_schedule"]["slope"]
+        # self.diffusion_schedule_vrescale = self.config["model"]["diffusion_schedule"]["vrescale"]
+        # self.diffusion_schedule_hrescale = self.config["model"]["diffusion_schedule"]["hrescale"]
         _, self.n_qubits = find_closest_power_of_2(n_features, return_power=True)
     
     def diffuse(self):
@@ -108,6 +110,7 @@ class QDDPMDiffuser():
             states[t] = model.set_diffusionData_t(t, states[t-1], diffusion_weights[:t], seed=t)
             states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
 
+        # name = self.diffusion_schedule_name + str(self.diffusion_schedule_slope) + "-" + str(self.diffusion_schedule_vrescale) + "-" + str(self.diffusion_schedule_hrescale)
         name = self.diffusion_schedule_name + str(self.diffusion_schedule_slope)
         dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=name, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
         np.save(dir / filename, states.detach().cpu().numpy())

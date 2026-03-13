@@ -4,7 +4,7 @@ model:
   n_timesteps: 40 # Number of time steps T
   diffusion_schedule:
     name: 'linear' # 'linear'
-    slope: 0.36
+    slope: 0.003
   n_backward_layers: 6 # L
   n_ancilla_qubits: 2 # na
 training:

@@ -153,10 +153,19 @@ def get_diffusion_weights(config, device='cpu'):
         slope = config["model"]["diffusion_schedule"]["slope"]
         diffusion_weights = 1/(n_timesteps+1) * torch.linspace(1., slope*torch.tensor(n_timesteps+1), n_timesteps+1, device=device)
 
-    elif diffusion_schedule_name == "custom_tanh":
+    elif diffusion_schedule_name == "square":
         slope = config["model"]["diffusion_schedule"]["slope"]
-        x = torch.linspace(1., torch.tensor(n_timesteps+1), steps=n_timesteps+1, device=device)
-        diffusion_weights = torch.nn.Tanh(x)
+        x = torch.linspace(0., n_timesteps+1, steps=n_timesteps+1, device=device)
+        diffusion_weights = slope*torch.pow(x, 2)
+    
+
+    elif diffusion_schedule_name == "custom_sq":
+        slope = config["model"]["diffusion_schedule"]["slope"]
+        vrescale = config["model"]["diffusion_schedule"]["vrescale"]
+        hrescale = config["model"]["diffusion_schedule"]["hrescale"]
+
+        x = torch.linspace(0., n_timesteps+1, steps=n_timesteps+1, device=device)
+        diffusion_weights = slope*torch.pow(x, 2)
     else:
         raise NotImplementedError(f'Diffusion schedule {diffusion_schedule_name} not implemented.')
 

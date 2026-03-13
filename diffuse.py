@@ -8,7 +8,7 @@ import torch
 import yaml
 import re
 
-def main(config, n_data, n_features, n_timesteps, diffusion_schedule_nickname):
+def main(config, n_data, n_features, n_timesteps, diffusion_schedule_nickname, overwrite=False):
     # config = yaml.safe_load(open('config.yaml', 'r'))
     dataset_config = config['dataset']
     model_config = config['model']
@@ -24,7 +24,7 @@ def main(config, n_data, n_features, n_timesteps, diffusion_schedule_nickname):
 
     dir, filename = get_path(config, type='diffusedqstates.npy', diffusion_schedule=diffusion_schedule_nickname, n_data=n_data, n_features=n_features, n_qubits=n_qubits, n_timesteps=n_timesteps)
     path = dir/filename
-    if path.exists():
+    if path.exists() and not overwrite:
         print("Forward diffused states found. Skipping diffusion...")
     else:
         print("Forward diffused states not found. Generating them...")
