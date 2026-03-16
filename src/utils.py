@@ -212,15 +212,17 @@ def get_dataset(config, verbose=True):
         transform = _apply_torchvision_transforms(dataset_config)
         dir = dataset_config.get('dir', './data')
         digit_str = parts[1] # ! CURRENTLY WE ONLY SUPPORT 1 DIGIT AT ONCE (e.g. '0' or '1', but not '01').
+        print(f"Digit: {digit_str}")
 
         dataset = datasets.MNIST(root=dir, train=True, download=True, transform=transform)
-        indices = [i for i, (img, label) in enumerate(dataset) if label == digit_str]
+        indices = [i for i, (img, label) in enumerate(dataset) if label == int(digit_str)]
         maxsize = dataset_config.get('maxsize', len(dataset))
         indices = indices[:maxsize]
         dataset = Subset(dataset, indices)
 
         # Cochinada para convertir a np arrays
         batch_size = dataset_config.get('batch_size', len(dataset))
+        print(f"Batch size: {batch_size}")
         dataset = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         dataset = next(iter(dataset))[0]
 
@@ -228,7 +230,7 @@ def get_dataset(config, verbose=True):
         dataset = np.array(dataset, dtype=np.complex64)
         dataset = dataset / np.linalg.norm(dataset, axis=1, keepdims=True) # Ensure normalization
 
-    if type == 'CIRCLEY':
+    elif type == 'CIRCLEY':
         size = dataset_config['maxsize']
         size = size if size is not None else 60000
         n_qubits = parts[1]

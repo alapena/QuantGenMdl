@@ -1,12 +1,12 @@
 device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 seed: 0
 model:
-  n_timesteps: 40 # Number of time steps T
+  n_timesteps: 50 # Number of time steps T
   diffusion_schedule:
-    name: 'linear' # 'linear'
-    slope: 0.003
-  n_backward_layers: 6 # L
-  n_ancilla_qubits: 2 # na
+    name: 'linear' # 'linear', 'square'
+    slope: 0.2
+  n_backward_layers: 9 # L
+  n_ancilla_qubits: 4 # na
 training:
   overwrite_saves: True
   batch_size: null # If null, it will be set to the size of the training dataset
@@ -23,8 +23,8 @@ training:
   loss_fn: 'sinkhorn' # 'sinkhorn', 'wass'
 dataset:
   dir: 'data' # Directory to store the dataset
-  name: 'CIRCLEY_3' # e.g. 'MNIST_0', 'CIRCLEY_3'
-  # transforms:
-  #   resize: 16 # nxn pixels to resize.
+  name: 'MNIST_1' # e.g. 'MNIST_0', 'CIRCLEY_3'
+  transforms:
+    resize: 16 # nxn pixels to resize.
   maxsize: 1000
   
