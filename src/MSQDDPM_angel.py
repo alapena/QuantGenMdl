@@ -1,3 +1,4 @@
+from networkx import omega
 import numpy as np
 import tensorcircuit as tc
 import scipy as sp
@@ -74,16 +75,36 @@ class MSQDDPMDifusser(nn.Module):
 
 
 class MSQDDPM(nn.Module):
-    def __init__(self, n, na, T, L, device='cpu'):
+    def __init__(self, n, n_ancilla_qubits, n_haar_ancilla_qubits, T, L, seed, device='cpu'):
         super().__init__()
         self.n = n
-        self.na = na
-        self.n_tot = n + na
+        self.na = n_ancilla_qubits
+        self.na_haar = n_haar_ancilla_qubits
+        assert self.na_haar == 1 # Currently only support 1 ancilla qubit in the Haar random state.
+        self.n_tot = n + n_haar_ancilla_qubits + n_ancilla_qubits
         self.T = T
         self.L = L
+        self.seed = seed
         self.device = device
         # embed the circuit to a vectorized pytorch neural network layer
         self.backCircuit_vmap = K.vmap(partial(backCircuit, n_tot=self.n_tot, L=L), vectorized_argnums=0)
+    
+    def _generate_haar_states(self, n_data):
+        '''Generate a batch of Haar random states of just 1 qubit.
+        Returns: [n_data, 2]'''
+        torch.manual_seed(self.seed)
+        params = torch.rand(n_data, 3)
+        phi = 2 * torch.pi * params[:, 0]
+        omega = 2 * torch.pi * params[:, 1]
+        sin_sampler = sin_prob_dist(a=0, b=np.pi)
+        theta = sin_sampler.rvs(size=1)[0]
+
+        def circuit_fn(p):
+            c = tc.Circuit(1)
+            c.rot(0, phi=p[0], theta=p[1], omega=p[2])
+            return c.state()
+        vmap_circuit = tc.vmap(circuit_fn)
+        return vmap_circuit(torch.stack([phi, theta, omega], dim=-1))
 
     def _randomMeasure(self, inputs):
         m_probs = (torch.abs(inputs.reshape(inputs.shape[0], 2**self.na, 2**self.n))**2).sum(dim=2) # Compute probs of measuring each ancilla state (marginal probs over the data qubits)
@@ -103,11 +124,28 @@ class MSQDDPM(nn.Module):
         return output_t
     
     def prepareInput_t(self, inputs_T, params_tot, t, Ndata):
-        self.input_tplus1 = torch.zeros((Ndata, 2**self.n_tot), device=self.device).cfloat()
-        self.input_tplus1[:,:2**self.n] = inputs_T
-        with torch.no_grad():
-            for tt in range(self.T-1, t, -1):
-                self.input_tplus1[:,:2**self.n] = self.backwardOutput_t(self.input_tplus1, params_tot[tt])
+        '''The input for t step has to be the tensor product of a Haar random state and na ancilla qubits.'''
+        if self.na_haar == 1:
+            # |Haar> \otimes |0>^(n_zero_ancilla_qubits) \otimes |data>
+            haar_states = self._generate_haar_states(Ndata) # 1. |Haar> : Shape [Ndata, 2]
+            ancilla_zero = torch.zeros(2**self.na, device=self.device, dtype=torch.complex64) # 2. |0>^na : Shape [2**na]
+            ancilla_zero[0] = 1.0
+            prefix = torch.vmap(lambda h: torch.kron(h, ancilla_zero))(haar_states) # 3. |Haar> \otimes |0>^na
+            self.input_tplus1 = torch.vmap(torch.kron)(prefix, inputs_T) # 4. (|Haar> \otimes |0>^na) \otimes |Data>
+
+        elif self.na_haar == 0:
+            ancilla_zero = torch.zeros(2**self.na, device=self.device, dtype=torch.complex64) # |0>^na : Shape [2**na]
+            ancilla_zero[0] = 1.0
+            self.input_tplus1 = torch.vmap(torch.kron)(ancilla_zero, inputs_T) # (|0>^na) \otimes |Data>
+        
+        else:
+            # |0>^(n_zero_ancilla_qubits) \otimes |data>
+            self.input_tplus1 = torch.zeros((Ndata, 2**self.n_tot), device=self.device).cfloat()
+            self.input_tplus1[:,:2**self.n] = inputs_T
+            with torch.no_grad():
+                for tt in range(self.T-1, t, -1):
+                    self.input_tplus1[:,:2**self.n] = self.backwardOutput_t(self.input_tplus1, params_tot[tt])
+
         return self.input_tplus1
 
 def backCircuit(input, params, n_tot, L):
@@ -159,3 +197,9 @@ def sinkhornDistance(Set1, Set2, reg=0.1):
     emt = torch.empty(0)
     Sinkhorn_dis = ot.sinkhorn2(emt, emt, M=D, reg=reg)
     return Sinkhorn_dis
+
+from scipy.stats import rv_continuous
+class sin_prob_dist(rv_continuous):
+    def _pdf(self, theta):
+        # The 0.5 is so that the distribution is normalized
+        return 0.5 * np.sin(theta)

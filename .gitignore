@@ -5,6 +5,7 @@ data
 .vscode
 processes_ids.txt
 =*
+results*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

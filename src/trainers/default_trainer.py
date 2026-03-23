@@ -14,7 +14,7 @@ class QDDPMTrainer(BasicTrainer):
         super().__init__(config, n_data, n_features, n_timesteps, device=device)
 
         self.learning_rate = self.config['training']['learning_rate']
-        self.diffusion_schedule_nickname = self.config['model']['diffusion_schedule']['name'] + str(self.config['model']['diffusion_schedule']['slope'])
+        # self.diffusion_schedule_nickname = self.config['model']['diffusion_schedule']['name'] + str(self.config['model']['diffusion_schedule']['slope'])
 
     def _generate_diffusedstates_and_get_path(self):
         dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
@@ -175,7 +175,7 @@ class MSQDDPMTrainer(QDDPMTrainer):
                 generator_initialqstates.generate_initialqstates()
 
             # Everything checked. Diffuse.
-            diffuser = MSQDDPMDifusser(self.config, self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
+            diffuser = MSQDDPMDifusser(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
             initialqstates = torch.from_numpy(np.load(dir/filename)).to(self.device)
             rhos_initial = diffuser.density_matrices_ensemble_from_pure_states_ensemble(initialqstates)
             rhos_diffused = torch.zeros((self.n_timesteps+1, self.n_data, self.n_features, self.n_features), dtype=torch.complex64, device=self.device)
@@ -190,7 +190,7 @@ class MSQDDPMTrainer(QDDPMTrainer):
         self._save_config()
         self._generate_diffusedstates()
         dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
-        states_diffused = np.load(path) # Must be numpy array
+        states_diffused = np.load(dir/filename) # Must be numpy array
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
 
         self.model.train()

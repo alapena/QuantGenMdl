@@ -2,7 +2,7 @@ from tqdm import tqdm
 
 from src.utils import get_dataset, get_diffusion_weights, get_path, find_closest_power_of_2
 from src.QDDPM_torch_angel import QDDPM, DiffusionModel, WassDistance, sinkhornDistance
-from src.trainers.MSQDDPM_trainers import MSQDDPMTrainer
+from src.MSQDDPM_angel import MSQDDPM
 from src.plot import Plotter
 from functools import partial
 import numpy as np
@@ -33,7 +33,7 @@ class BasicTrainer():
         if model == 'QDDPM':
             self.model = QDDPM(self.n_qubits, self.n_ancilla_qubits, self.n_timesteps, self.n_backward_layers, device=self.device).to(self.device)
         elif model == 'MSQDDPM':
-            self.model = MSQDDPMTrainer(self.n_qubits, self.n_ancilla_qubits, self.n_timesteps, self.n_backward_layers, device=self.device).to(self.device)
+            self.model = MSQDDPM(self.n_qubits, self.n_ancilla_qubits, self.config['model']['n_haar_ancilla_qubits'], self.n_timesteps, self.n_backward_layers, seed=self.config['seed'], device=self.device).to(self.device)
         else:
             raise NotImplementedError("Model {model} not implemented.")
 
