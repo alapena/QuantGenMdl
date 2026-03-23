@@ -2,13 +2,14 @@ from tqdm import tqdm
 
 from src.utils import get_dataset, get_diffusion_weights, get_path, find_closest_power_of_2
 from src.QDDPM_torch_angel import QDDPM, DiffusionModel, WassDistance, sinkhornDistance
+from src.trainers.MSQDDPM_trainers import MSQDDPMTrainer
 from src.plot import Plotter
 from functools import partial
 import numpy as np
 import torch
 import yaml
 
-class QDDPMBasicTrainer():
+class BasicTrainer():
     def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
         self.device = device
         self.config = config
@@ -22,10 +23,19 @@ class QDDPMBasicTrainer():
         self.n_backward_layers = self.config['model']['n_backward_layers']
         self.n_epochs = self.config['training']['n_epochs']
 
-        self.model = QDDPM(self.n_qubits, self.n_ancilla_qubits, self.n_timesteps, self.n_backward_layers, device=self.device).to(self.device)
+        self._get_model()
 
         self.n_params = 2 * self.model.n_tot * self.model.L
         self.plotter = Plotter()
+
+    def _get_model(self):
+        model = self.config['model']['name']
+        if model == 'QDDPM':
+            self.model = QDDPM(self.n_qubits, self.n_ancilla_qubits, self.n_timesteps, self.n_backward_layers, device=self.device).to(self.device)
+        elif model == 'MSQDDPM':
+            self.model = MSQDDPMTrainer(self.n_qubits, self.n_ancilla_qubits, self.n_timesteps, self.n_backward_layers, device=self.device).to(self.device)
+        else:
+            raise NotImplementedError("Model {model} not implemented.")
 
     def _get_loss_fn(self):
         loss_type = self.config['training'].get('loss_fn', 'wass')

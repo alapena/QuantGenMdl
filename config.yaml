@@ -1,6 +1,7 @@
 device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 seed: 0
 model:
+  name: 'MSQDDPM' # 'QDDPM', 'MSQDDPM'
   n_timesteps: 50 # Number of time steps T
   diffusion_schedule:
     name: 'linear' # 'linear', 'square'
