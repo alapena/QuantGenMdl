@@ -14,7 +14,7 @@ import torch
 import yaml
 
 def main():
-    config = yaml.safe_load(open('config_debug.yaml', 'r'))
+    config = yaml.safe_load(open('config.yaml', 'r'))
     print("")
     device = set_device(config.get('device', 'cpu'))
     torch.set_default_device(device)
@@ -189,7 +189,7 @@ class MSQDDPMTrainer():
             lr_scheduler.step()
 
             pbar.set_postfix({
-                'ℒ (loss)': f"{loss_value:.4f}",
+                'ℒ (loss)': f"{loss_value:.3e}",
                 '💾 (last saved)': f"{last_save}"
             })
 
@@ -203,8 +203,8 @@ class MSQDDPMTrainer():
             self.history['loss'].append(loss_value)
             loss_hist.append(loss_value) # record the current loss
             if self.config['training']['live_plot']['save'] and epoch % self.config['training']['live_plot']['frequency'] == 0:
-                fig = self.plotter.plot_loss(t, history=self.history)
-                dir, filename = get_path(self.config, type='lossplot.html', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+                fig = self.plotter.plot_loss(t, history=self.history, logscale=True)
+                dir, filename = self.get_path(type='lossplot.html', t=t)
                 fig.write_html(str(dir/filename))
 
         return params_t, torch.stack(loss_hist)

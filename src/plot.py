@@ -8,7 +8,7 @@ class Plotter():
     def update_history(self, history):
         self.history = history
 
-    def plot_loss(self, t, history=None, return_fig=True) -> go.Figure:
+    def plot_loss(self, t, history=None, return_fig=True, logscale=False) -> go.Figure:
         self.update_history(history) if history is not None else None
 
         fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -34,7 +34,9 @@ class Plotter():
             title = f'Loss plot of timestep {t}',
             xaxis_title = 'Epoch',
             yaxis = dict(
-                title = 'Loss'
+                title = 'Loss',
+                type = "log" if logscale else "linear",
+                tickformat=".0e" if logscale else None,
             ),
             yaxis2 = dict(
                 title = 'Learning rate',

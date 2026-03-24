@@ -2,7 +2,7 @@ device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 seed: 0
 model:
   # name: 'MSQDDPM' # 'QDDPM', 'MSQDDPM'
-  n_timesteps: 10 # Number of time steps T
+  n_timesteps: 6 # Number of time steps T
   diffusion_schedule:
     name: 'linear' # 'linear', 'square'
     # slope: 0.2
@@ -13,7 +13,7 @@ model:
 training:
   overwrite_saves: True
   batch_size: null # If null, it will be set to the size of the training dataset
-  n_epochs: 5001 # Epochs for training each time step
+  n_epochs: 3501 # Epochs for training each time step
   learning_rate: 0.005
   lr_scheduler: 
     type: 'CosineAnnealingWarmRestarts' # 'CosineAnnealingWarmRestarts', 'ctt',
