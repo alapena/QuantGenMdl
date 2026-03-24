@@ -75,13 +75,13 @@ class MSQDDPMDifusser(nn.Module):
 
 
 class MSQDDPM(nn.Module):
-    def __init__(self, n, n_ancilla_qubits, n_haar_ancilla_qubits, T, L, seed, device='cpu'):
+    def __init__(self, n, n_zero_ancilla_qubits, n_haar_ancilla_qubits, T, L, seed, device='cpu'):
         super().__init__()
         self.n = n
-        self.na = n_ancilla_qubits
+        self.nza = n_zero_ancilla_qubits
         self.na_haar = n_haar_ancilla_qubits
         assert self.na_haar == 1 # Currently only support 1 ancilla qubit in the Haar random state.
-        self.n_tot = n + n_haar_ancilla_qubits + n_ancilla_qubits
+        self.n_tot = n + n_haar_ancilla_qubits + n_zero_ancilla_qubits
         self.T = T
         self.L = L
         self.seed = seed
@@ -110,13 +110,13 @@ class MSQDDPM(nn.Module):
 
     def _randomMeasure(self, inputs):
         c = tc.DMCircuit(self.n_tot, dminputs=inputs)
-        c.cond_measure(*range(self.na + self.na_haar))
+        c.cond_measure(*range(self.nza + self.na_haar))
         return c.densitymatrix()
     
     def _trace_out_ancilla_vmap(self, dm):
         '''Trace out the ancilla qubits from the input density matrix.'''
         def _trace_out_ancilla(dm_):
-            return tc.quantum.reduced_density_matrix(dm_, list(range(self.na + self.na_haar)))
+            return tc.quantum.reduced_density_matrix(dm_, list(range(self.nza + self.na_haar)))
         return K.vmap(_trace_out_ancilla, vectorized_argnums=0)(dm)
     
     def _kron_product_vmap(self, A, B):
@@ -140,7 +140,7 @@ class MSQDDPM(nn.Module):
             if self.na_haar == 1:
                 # |Haar> \otimes |0>^(n_zero_ancilla_qubits) \otimes |data>
                 haar_states = self._generate_haar_states(Ndata) # 1. |Haar> : Shape [Ndata, 2]
-                ancilla_zero = torch.zeros(2**self.na, device=self.device, dtype=torch.complex64) # 2. |0>^na : Shape [2**na]
+                ancilla_zero = torch.zeros(2**self.nza, device=self.device, dtype=torch.complex64) # 2. |0>^na : Shape [2**na]
                 ancilla_zero[0] = 1.0
                 prefix = self._kron_product_vmap(haar_states, ancilla_zero.unsqueeze(0).expand(Ndata, -1)) # 3. |Haar> \otimes |0>^na. Shape [Ndata, 2**(na_haar+na)]
 

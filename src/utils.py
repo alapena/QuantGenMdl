@@ -175,7 +175,7 @@ def get_diffusion_weights(config, device='cpu'):
 def get_path_MSQDDPM(config: Dict, type: str, new_subfolder: str = None, suffix: str = None, **kwargs):
     dataset_config = config['dataset']
     datasetname = dataset_config['name']
-    modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_nza{kwargs['n_zero_ancilla_qubits']}_nha{kwargs['n_haar_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
+    modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_nza{kwargs['n_zero_ancilla_qubits']}_nha{kwargs['n_haar_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
 
     if type == 'initialqstates.npy':
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'initialqstates'
@@ -183,25 +183,24 @@ def get_path_MSQDDPM(config: Dict, type: str, new_subfolder: str = None, suffix:
     
     elif type == 'diffusedqstates.npy':
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'diffusedqstates'
-        filename = f"diffusedqstates_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
+        filename = f"diffusedqstates_{datasetname}_schedule{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
     
     elif type == 'wassdistforward.npy':
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'diffusedqstates'
-        filename = f"wassdistforward_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
+        filename = f"wassdistforward_{datasetname}_schedule{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
+
 
     elif type == 'wassdistbackwardtrain.npy':
-        dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
-        filename = f"wassdistbackwardtrain_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}.npy"
+        dir = modeldir
+        filename = f"wassdistbackwardtrain.npy"
 
     elif type == 'wassdistbackwardtest.npy':
         dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
-        filename = f"wassdistbackwardtest_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}.npy"
+        filename = f"wassdistbackwardtest.npy"
 
     elif type == 'sinkdistbackwardtrain.npy':
         dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
-        filename = f"sinkdistbackwardtest_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}.npy"
-
-
+        filename = f"sinkdistbackwardtest.npy"
     elif type == 'bestparams.npy':
         dir = modeldir / "bestresults"
         filename = f"bestparams_t{kwargs['t']}.npy"
