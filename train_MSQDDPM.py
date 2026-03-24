@@ -102,7 +102,7 @@ class MSQDDPMTrainer():
         dir, filename = self.get_path(type='bestparams.npy', t=t)
         np.save(dir/filename, params)
         if verbose:
-            print(f"Saved parameters at {dir/filename}.\nCorresponding loss: {loss_hist[-1]:.5f}.")
+            print(f"Saved parameters at {dir/filename}.\nCorresponding loss: {loss_hist[-1]:.3e}.")
 
         dir, filename = self.get_path(type='bestlosshist.npy', t=t)
         np.save(dir/filename, loss_hist)
@@ -111,7 +111,7 @@ class MSQDDPMTrainer():
         dir, filename = self.get_path(type='finalparams.npy', t=t)
         np.save(dir / filename, params)
         if verbose:
-            print(f"Saved parameters at {dir/filename}.\nCorresponding loss: {loss_hist[-1]:.5f}.")
+            print(f"Saved parameters at {dir/filename}.\nCorresponding loss: {loss_hist[-1]:.3e}.")
 
         dir, filename = self.get_path(type='finallosshist.npy', t=t)
         np.save(dir / filename, loss_hist)
@@ -160,7 +160,7 @@ class MSQDDPMTrainer():
             'loss': [],
         }
         seed = self.config['seed']
-        input_tplus1 = self.model.prepareInput_t(inputs_last_timestep, params_tot, t, n_data)
+        input_tplus1 = self.model.prepareInput_t(inputs_last_timestep, params_tot, t, n_data) # Same Haar for all epochs, but different for each data state.
         states_diffused = self.model.states_diff
 
         # initialize parameters
@@ -174,13 +174,15 @@ class MSQDDPMTrainer():
         # Start training loop
         last_save = 0 # Epoch where results were last saved
         pbar = tqdm(range(self.n_epochs))
+        self.model.train()
         for epoch in pbar:
             optimizer.zero_grad()
 
             indices = np.random.choice(states_diffused.shape[1], size=n_data, replace=False)
             true_data = states_diffused[t, indices]
 
-            output_t = self.model.backwardOutput_t(input_tplus1, params_t)
+            measured_full = self.model.backwardOutput_t(input_tplus1, params_t)
+            output_t = self.model._trace_out_ancilla_vmap(measured_full)
             loss = lossfn(output_t, true_data)
 
             loss_value = loss.detach().cpu()
@@ -217,7 +219,6 @@ class MSQDDPMTrainer():
         states_diffused = np.load(dir/filename) # Must be numpy array
         self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
 
-        self.model.train()
         inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
         for t in range(self.n_timesteps, 0, -1): # From T to 1
             print(f"--- Training timestep {t} ---")

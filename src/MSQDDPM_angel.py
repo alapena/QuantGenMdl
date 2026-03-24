@@ -113,9 +113,17 @@ class MSQDDPM(nn.Module):
         c.cond_measure(*range(self.na + self.na_haar))
         return c.densitymatrix()
     
-    def _trace_out_ancilla(self, dm):
+    def _trace_out_ancilla_vmap(self, dm):
         '''Trace out the ancilla qubits from the input density matrix.'''
-        return tc.quantum.reduced_density_matrix(dm, list(range(self.na + self.na_haar)))
+        def _trace_out_ancilla(dm_):
+            return tc.quantum.reduced_density_matrix(dm_, list(range(self.na + self.na_haar)))
+        return K.vmap(_trace_out_ancilla, vectorized_argnums=0)(dm)
+    
+    def _kron_product_vmap(self, A, B):
+        '''Compute the Kronecker product of two batches of matrices A and B.'''
+        def kron_product(a, b):
+            return torch.kron(a, b)
+        return torch.vmap(kron_product)(A, B)
 
     
     def set_diffusionSet(self, states_diff):
@@ -124,36 +132,44 @@ class MSQDDPM(nn.Module):
     def backwardOutput_t(self, inputs, params):
         output_full = self.backCircuit_vmap(inputs, params)
         measured_full = K.vmap(self._randomMeasure, vectorized_argnums=0)(output_full) # Measure the ancilla qubits (and ditch the results)
-        output_t = K.vmap(self._trace_out_ancilla, vectorized_argnums=0)(measured_full) # Trace out the ancilla qubits
-        return output_t
+        return measured_full
     
     def prepareInput_t(self, inputs_T, params_tot, t, Ndata):
         '''The input for t step has to be the tensor product of a Haar random state and na ancilla qubits.'''
-        if self.na_haar == 1:
-            # |Haar> \otimes |0>^(n_zero_ancilla_qubits) \otimes |data>
-            haar_states = self._generate_haar_states(Ndata) # 1. |Haar> : Shape [Ndata, 2]
-            ancilla_zero = torch.zeros(2**self.na, device=self.device, dtype=torch.complex64) # 2. |0>^na : Shape [2**na]
-            ancilla_zero[0] = 1.0
-            prefix = torch.vmap(lambda h: torch.kron(h, ancilla_zero))(haar_states) # 3. |Haar> \otimes |0>^na. Shape [Ndata, 2**(na_haar+na)]
-            def vector_to_dm(v):
-                return torch.outer(v, torch.conj(v))
-            prefix_dm = torch.vmap(vector_to_dm)(prefix) # [Ndata, 4, 4]
-            self.input_tplus1 = torch.vmap(torch.kron)(prefix_dm, inputs_T) # 4. (|Haar> \otimes |0>^na) \otimes |Data>. Shape [Ndata, 2**(na_haar+na+n)]
+        with torch.no_grad():
+            if self.na_haar == 1:
+                # |Haar> \otimes |0>^(n_zero_ancilla_qubits) \otimes |data>
+                haar_states = self._generate_haar_states(Ndata) # 1. |Haar> : Shape [Ndata, 2]
+                ancilla_zero = torch.zeros(2**self.na, device=self.device, dtype=torch.complex64) # 2. |0>^na : Shape [2**na]
+                ancilla_zero[0] = 1.0
+                prefix = self._kron_product_vmap(haar_states, ancilla_zero.unsqueeze(0).expand(Ndata, -1)) # 3. |Haar> \otimes |0>^na. Shape [Ndata, 2**(na_haar+na)]
 
-        # Not tested:
-        elif self.na_haar == 0:
-            ancilla_zero = torch.zeros(2**self.na, device=self.device, dtype=torch.complex64) # |0>^na : Shape [2**na]
-            ancilla_zero[0] = 1.0
-            self.input_tplus1 = torch.vmap(torch.kron)(ancilla_zero, inputs_T) # (|0>^na) \otimes |Data>
-        else:
-            # |0>^(n_zero_ancilla_qubits) \otimes |data>
-            self.input_tplus1 = torch.zeros((Ndata, 2**self.n_tot), device=self.device).cfloat()
-            self.input_tplus1[:,:2**self.n] = inputs_T
-            with torch.no_grad():
-                for tt in range(self.T-1, t, -1):
-                    self.input_tplus1[:,:2**self.n] = self.backwardOutput_t(self.input_tplus1, params_tot[tt])
+                def vector_to_dm(v):
+                    return torch.outer(v, torch.conj(v))
+                prefix_dm = torch.vmap(vector_to_dm)(prefix) # [Ndata, 4, 4]
+                input_tplus1 = self._kron_product_vmap(prefix_dm, inputs_T) # 4. (|Haar> \otimes |0>^na) \otimes |Data>. Shape [Ndata, 2**(na_haar+na+n)]
 
-        return self.input_tplus1
+                # Now apply the backward circuit from T-1 to t+1 to get the input for t step.
+                for tt in range(self.T-1, t, -1): # From T-1 to t+1
+                    measured_full = self.backwardOutput_t(input_tplus1, params_tot[tt])
+                    output_t = self._trace_out_ancilla_vmap(measured_full) # Trace out the ancilla qubits
+                    input_tplus1 = self._kron_product_vmap(prefix_dm, output_t) # Re-attach the prefix (|Haar> \otimes |0>^na \otimes |data_tplus1>)
+                return input_tplus1
+
+            # Not tested:
+            # elif self.na_haar == 0:
+            #     ancilla_zero = torch.zeros(2**self.na, device=self.device, dtype=torch.complex64) # |0>^na : Shape [2**na]
+            #     ancilla_zero[0] = 1.0
+            #     self.input_tplus1 = torch.vmap(torch.kron)(ancilla_zero, inputs_T) # (|0>^na) \otimes |Data>
+            # else:
+            #     # |0>^(n_zero_ancilla_qubits) \otimes |data>
+            #     self.input_tplus1 = torch.zeros((Ndata, 2**self.n_tot), device=self.device).cfloat()
+            #     self.input_tplus1[:,:2**self.n] = inputs_T
+            #     with torch.no_grad():
+            #         for tt in range(self.T-1, t, -1):
+            #             self.input_tplus1[:,:2**self.n] = self.backwardOutput_t(self.input_tplus1, params_tot[tt])
+
+            raise NotImplementedError("Only support na_haar=1 for now.")
 
 def backCircuit(input, params, n_tot, L):
     c = tc.DMCircuit(n_tot, dminputs=input)
