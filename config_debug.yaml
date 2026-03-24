@@ -1,29 +1,32 @@
 device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 seed: 0
 model:
-  n_timesteps: 2 # Number of time steps T
+  # name: 'MSQDDPM' # 'QDDPM', 'MSQDDPM'
+  n_timesteps: 3 # Number of time steps T
   diffusion_schedule:
-    name: 'linear' # 'linear'
-    slope: 1.5
-  n_backward_layers: 6 # L
-  n_ancilla_qubits: 2 # na
+    name: 'linear' # 'linear', 'square'
+    # slope: 0.2
+  n_backward_layers: 8 # L
+  # n_ancilla_qubits: 2 # na
+  n_zero_ancilla_qubits: 1 # na
+  n_haar_ancilla_qubits: 1 # Currently only supported for 1 or 0. n_tot = n + n_haar_ancilla_qubits + n_ancilla_qubits (zero).
 training:
   overwrite_saves: True
   batch_size: null # If null, it will be set to the size of the training dataset
-  n_epochs: 2 # Epochs for training each time step
+  n_epochs: 5 # Epochs for training each time step
   learning_rate: 0.005
   lr_scheduler: 
     type: 'CosineAnnealingWarmRestarts' # 'CosineAnnealingWarmRestarts', 'ctt',
-    T_0: 50
-    T_mult: 2
+    T_0: 100
+    T_mult: 1
   regularization: 0.03
   live_plot:
     save: False
     frequency: 50
   loss_fn: 'sinkhorn' # 'sinkhorn', 'wass'
 dataset:
-  dir: 'data' # Directory to store the dataset
-  name: 'CIRCLEY_4' # e.g. 'MNIST_0', 'CIRCLEY_3'
+  dir: 'results_MSQDDPM' # Directory to store the dataset
+  name: 'CIRCLEY_1' # e.g. 'MNIST_0', 'CIRCLEY_3'
   # transforms:
   #   resize: 16 # nxn pixels to resize.
   maxsize: 10

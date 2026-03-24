@@ -172,6 +172,79 @@ def get_diffusion_weights(config, device='cpu'):
     return diffusion_weights
 
 
+def get_path_MSQDDPM(config: Dict, type: str, new_subfolder: str = None, suffix: str = None, **kwargs):
+    dataset_config = config['dataset']
+    datasetname = dataset_config['name']
+    modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_nza{kwargs['n_zero_ancilla_qubits']}_nha{kwargs['n_haar_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
+
+    if type == 'initialqstates.npy':
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / 'initialqstates'
+        filename = f"initialqstates_{datasetname}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}.npy"
+    
+    elif type == 'diffusedqstates.npy':
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / 'diffusedqstates'
+        filename = f"diffusedqstates_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
+    
+    elif type == 'wassdistforward.npy':
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / 'diffusedqstates'
+        filename = f"wassdistforward_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
+
+    elif type == 'wassdistbackwardtrain.npy':
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
+        filename = f"wassdistbackwardtrain_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}.npy"
+
+    elif type == 'wassdistbackwardtest.npy':
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
+        filename = f"wassdistbackwardtest_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}.npy"
+
+    elif type == 'sinkdistbackwardtrain.npy':
+        dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
+        filename = f"sinkdistbackwardtest_{datasetname}_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}.npy"
+
+
+    elif type == 'bestparams.npy':
+        dir = modeldir / "bestresults"
+        filename = f"bestparams_t{kwargs['t']}.npy"
+    
+    elif type == 'bestlosshist.npy':
+        dir = modeldir / "bestresults"
+        filename = f"bestlosshist_t{kwargs['t']}.npy"
+
+    elif type == 'finalparams.npy':
+        dir = modeldir / "finalresults"
+        filename = f"finalparams_t{kwargs['t']}.npy"
+
+    elif type == 'finallosshist.npy':
+        dir = modeldir / "finalresults"
+        filename = f"finallosshist_t{kwargs['t']}.npy"
+
+    elif type == 'lossplot.html':
+        dir = modeldir
+        filename = f"lossplot_t{kwargs['t']}.html"
+        
+    elif type == 'config.yaml':
+        dir = modeldir
+        filename = f"config.yaml"
+
+    else:
+        raise NotImplementedError(f"Path type {type} not implemented.")
+
+    
+    # Append a new folder at the end of the directory if specified:
+    if new_subfolder is not None:
+        parts = list(dir.parts)
+        parts.insert(-1, new_subfolder)
+        dir = Path(*parts)
+
+    # Append a suffix before the extension of the filename
+    if suffix is not None:
+        parts = filename.split('.')
+        filename = f"{parts[0]}_{suffix}.{parts[1]}"
+    
+    dir.mkdir(parents=True, exist_ok=True)
+    return dir, filename
+
+
 def get_dataset(config, verbose=True):
     def _apply_torchvision_transforms(dataset_config):
         from torchvision import transforms

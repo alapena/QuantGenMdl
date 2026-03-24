@@ -1,0 +1,23 @@
+# def _randomMeasure(self, inputs): # ! PURE STATES
+    #     m_probs = (torch.abs(inputs.reshape(inputs.shape[0], 2**self.na, 2**self.n))**2).sum(dim=2) # Compute probs of measuring each ancilla state (marginal probs over the data qubits)
+    #     m_res = torch.multinomial(m_probs, num_samples=1).squeeze() # Measurement results. The index of the measured ancilla state for each input state. (e.g. 1 stands for |01> in the ancilla space)
+        
+    #     indices = 2**self.n * m_res.view(-1, 1) + torch.arange(2**self.n, device=self.device) # Compute the indices to select the corresponding data qubit states based on the measurement results
+    #     post_state = torch.gather(inputs, 1, indices) # Select the corresponding data qubit states based on the measurement results. This gives us the post-measurement state of the data qubits, conditioned on the measurement outcome of the ancilla qubits.
+    #     norms = torch.sqrt(torch.sum(torch.abs(post_state)**2, axis=1)).unsqueeze(dim=1)
+    #     return 1./norms * post_state
+
+    # def _randomMeasure(self, inputs): # ! DENSITY MATRICES but MANUAL
+    #     n_ancilla_tot = self.na + self.na_haar
+    #     dim_ancilla = 2**n_ancilla_tot
+    #     dim_data = 2**self.n
+    #     diag_probs = torch.real(torch.vmap(torch.diag)(inputs)) # 1. Extract diagonal elements (probabilities) [Batch, 2**n_tot]
+    #     prob_matrix = diag_probs.reshape(-1, dim_ancilla, dim_data) # 2. Compute marginal probabilities for ancilla outcomes [Batch, dim_anc, dim_data]
+    #     m_probs = prob_matrix.sum(dim=2) # [Batch, dim_anc]
+    #     m_res = torch.multinomial(m_probs, num_samples=1).squeeze() # 3. Sample measurement outcomes # [Batch]
+    #     # 4. Extract conditioned sub-blocks (Partial Trace at m_res)
+    #     def get_post_measurement_dm(dm, res):
+    #         dm_tensor = dm.reshape(dim_ancilla, dim_data, dim_ancilla, dim_data)
+    #         post_dm = dm_tensor[res, :, res, :]
+    #         return post_dm / torch.trace(post_dm)
+    #     return torch.vmap(get_post_measurement_dm)(inputs, m_res)

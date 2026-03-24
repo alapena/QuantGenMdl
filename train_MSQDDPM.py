@@ -1,0 +1,243 @@
+# from src.trainers.default_trainer import MSQDDPMTrainer
+from src.utils import find_closest_power_of_2
+from src.utils import get_path_MSQDDPM
+from src.MSQDDPM_angel import MSQDDPM, MSQDDPMDifusser, WassDistance, sinkhornDistance
+from src.trainers.basic_trainers import QDDPMGeneratorInitialqstates
+from src.plot import Plotter
+from functools import partial
+from tqdm import tqdm
+import numpy as np
+import torch
+import yaml
+from src.utils import set_device
+import torch
+import yaml
+
+def main():
+    config = yaml.safe_load(open('config_debug.yaml', 'r'))
+    print("")
+    device = set_device(config.get('device', 'cpu'))
+    torch.set_default_device(device)
+
+    n_data = config['dataset']['maxsize'] # EDITABLE
+    n_timesteps = config['model']['n_timesteps'] # EDITABLE
+    n_qubits = int(config['dataset']['name'].split('_')[1])
+    n_features = 2**n_qubits#config['dataset']['transforms']['resize']**2 # EDITABLE
+    
+    # values = [2,3,4,5,6,7,8]
+    # for i, value in enumerate(values):
+        # print(f"---TRAINING WITH n_ancilla_qubits={value}---")
+        # config["model"]["n_ancilla_qubits"] = value
+
+    trainer = MSQDDPMTrainer(config, n_data, n_features, n_timesteps, device=device)
+    trainer.train_all_timesteps()
+        
+    # trainer.train_single_timestep(t=40)
+
+
+
+
+
+class MSQDDPMTrainer():
+    def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
+        self.device = device
+        self.config = config
+        self.n_data = n_data
+        self.n_features = n_features
+        self.n_timesteps = n_timesteps
+
+        _, self.n_qubits = find_closest_power_of_2(n_features, return_power=True)
+        self.n_zero_ancilla_qubits = self.config['model']['n_zero_ancilla_qubits']
+        self.n_haar_ancilla_qubits = self.config['model']['n_haar_ancilla_qubits']
+        self.n_ancilla_qubits = self.n_zero_ancilla_qubits + self.n_haar_ancilla_qubits
+        self.n_backward_layers = self.config['model']['n_backward_layers']
+        self.n_epochs = self.config['training']['n_epochs']
+        self.seed = self.config['seed']
+        self.learning_rate = self.config['training']['learning_rate']
+        self.diffusion_schedule_nickname = self.config['model']['diffusion_schedule']['name']
+
+        self.model = MSQDDPM(self.n_qubits, self.n_zero_ancilla_qubits, self.n_haar_ancilla_qubits, self.n_timesteps, self.n_backward_layers, seed=self.seed, device=self.device).to(self.device)
+
+        self.n_params = 2 * self.model.n_tot * self.model.L
+        self.plotter = Plotter()
+
+        self.get_path = partial(get_path_MSQDDPM, self.config, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_zero_ancilla_qubits=self.n_zero_ancilla_qubits, n_haar_ancilla_qubits=self.n_haar_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
+
+    def _get_loss_fn(self):
+        loss_type = self.config['training'].get('loss_fn', 'wass')
+        if loss_type == 'sinkhorn':
+            return partial(sinkhornDistance, reg=self.config['training']['regularization'])
+        elif loss_type == 'wass':
+            return WassDistance
+        else:
+            raise NotImplementedError('Loss function {loss_type} not implemented.')
+    
+    def _get_lr_scheduler(self):
+        config_lr_scheduler = self.config['training'].get('lr_scheduler', 'None')
+        if config_lr_scheduler['type'] == 'CosineAnnealingWarmRestarts':
+            T_0 = config_lr_scheduler['T_0']
+            T_mult = config_lr_scheduler['T_mult']
+            return partial(torch.optim.lr_scheduler.CosineAnnealingWarmRestarts, T_0=T_0, T_mult=T_mult)
+        elif config_lr_scheduler['type'] == 'ctt':
+            return NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
+        else:
+            raise NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
+
+    def _check_pretrained_params(self, t):
+        '''
+        Checks if there are existing parameters for the given timestep t, to avoid re-training them.
+        '''
+        if self.config["training"]["overwrite_saves"]:
+            return False
+        dir, filename = self.get_path(type='bestparams.npy', t=t)
+        path = dir/filename
+        return path.exists()
+
+    def _save_config(self):
+        dir, filename = self.get_path(type='config.yaml')
+        with open(dir/filename, 'w') as file:
+            yaml.dump(self.config, file, default_flow_style=False, sort_keys=False)
+
+    def _save_results_t(self, params, loss_hist, t, verbose=True):
+        dir, filename = self.get_path(type='bestparams.npy', t=t)
+        np.save(dir/filename, params)
+        if verbose:
+            print(f"Saved parameters at {dir/filename}.\nCorresponding loss: {loss_hist[-1]:.5f}.")
+
+        dir, filename = self.get_path(type='bestlosshist.npy', t=t)
+        np.save(dir/filename, loss_hist)
+
+    def _save_results_lastepoch(self, params, loss_hist, t, verbose=True):
+        dir, filename = self.get_path(type='finalparams.npy', t=t)
+        np.save(dir / filename, params)
+        if verbose:
+            print(f"Saved parameters at {dir/filename}.\nCorresponding loss: {loss_hist[-1]:.5f}.")
+
+        dir, filename = self.get_path(type='finallosshist.npy', t=t)
+        np.save(dir / filename, loss_hist)
+
+    def _get_loss_fn(self):
+        loss_type = self.config['training'].get('loss_fn', 'wass')
+        if loss_type == 'sinkhorn':
+            return partial(sinkhornDistance, reg=self.config['training']['regularization'])
+        elif loss_type == 'wass':
+            return WassDistance
+        else:
+            raise NotImplementedError('Loss function {loss_type} not implemented.')
+
+    def _generate_diffusedstates(self):
+        dir, filename = self.get_path(type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname)
+        path = dir/filename
+        if path.exists():
+            return path
+        else:
+            print("Forward diffused states not found. Generating them...")
+
+            # Check if initial states exist
+            dir, filename = self.get_path(type='initialqstates.npy')
+            path = dir/filename
+            if not path.exists():
+                # Generate initial states
+                print("Initial quantum states not found. Generating them...")
+                generator_initialqstates = QDDPMGeneratorInitialqstates(self.config)
+                generator_initialqstates.generate_initialqstates()
+
+            # Everything checked. Diffuse.
+            diffuser = MSQDDPMDifusser(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
+            initialqstates = torch.from_numpy(np.load(dir/filename)).to(self.device)
+            rhos_initial = diffuser.density_matrices_ensemble_from_pure_states_ensemble(initialqstates)
+            rhos_diffused = torch.zeros((self.n_timesteps+1, self.n_data, self.n_features, self.n_features), dtype=torch.complex64, device=self.device)
+            rhos_diffused[0] = rhos_initial
+            for t in tqdm(range(1, self.n_timesteps+1)):
+                rhos_diffused[t] = diffuser.depolarizing_channel_t(rhos_diffused[0], t)
+            dir, filename = self.get_path(type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname)
+            np.save(dir/filename, rhos_diffused.cpu().numpy())
+
+
+    def _train_timestep_t(self, t, inputs_last_timestep, params_tot, n_data, lr):
+        self.history = {
+            'lr': [],
+            'loss': [],
+        }
+        seed = self.config['seed']
+        input_tplus1 = self.model.prepareInput_t(inputs_last_timestep, params_tot, t, n_data)
+        states_diffused = self.model.states_diff
+
+        # initialize parameters
+        np.random.seed(seed)
+        params_t = torch.tensor(np.random.normal(size=2 * self.model.n_tot * self.model.L), device=self.device, requires_grad=True)
+        optimizer = torch.optim.Adam([params_t], lr=lr)
+        lr_scheduler = self._get_lr_scheduler()(optimizer)
+        lossfn = self._get_loss_fn()
+        loss_hist = []
+
+        # Start training loop
+        last_save = 0 # Epoch where results were last saved
+        pbar = tqdm(range(self.n_epochs))
+        for epoch in pbar:
+            optimizer.zero_grad()
+
+            indices = np.random.choice(states_diffused.shape[1], size=n_data, replace=False)
+            true_data = states_diffused[t, indices]
+
+            output_t = self.model.backwardOutput_t(input_tplus1, params_t)
+            loss = lossfn(output_t, true_data)
+
+            loss_value = loss.detach().cpu()
+            loss.backward()
+            optimizer.step()
+            lr_scheduler.step()
+
+            pbar.set_postfix({
+                'ℒ (loss)': f"{loss_value:.4f}",
+                '💾 (last saved)': f"{last_save}"
+            })
+
+            # Check if current step is best
+            if len(loss_hist) == 0 or loss_value < min(loss_hist):
+                self._save_results_t(params_t.detach().cpu(), loss_hist, t, verbose=False)
+                last_save = epoch
+
+            # Save and plot stats
+            self.history['lr'].append(lr_scheduler.get_last_lr()[0])
+            self.history['loss'].append(loss_value)
+            loss_hist.append(loss_value) # record the current loss
+            if self.config['training']['live_plot']['save'] and epoch % self.config['training']['live_plot']['frequency'] == 0:
+                fig = self.plotter.plot_loss(t, history=self.history)
+                dir, filename = get_path(self.config, type='lossplot.html', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_ancilla_qubits=self.n_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers, t=t)
+                fig.write_html(str(dir/filename))
+
+        return params_t, torch.stack(loss_hist)
+
+    
+    def train_all_timesteps(self):
+        self._save_config()
+        self._generate_diffusedstates()
+        dir, filename = self.get_path(type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname)
+        states_diffused = np.load(dir/filename) # Must be numpy array
+        self.model.set_diffusionSet(states_diffused) # This already converts the states to torch tensors in the device
+
+        self.model.train()
+        inputs_last_timestep = torch.from_numpy(states_diffused[-1]).to(self.device)
+        for t in range(self.n_timesteps, 0, -1): # From T to 1
+            print(f"--- Training timestep {t} ---")
+            if self._check_pretrained_params(t): 
+                print("Found already trained parameters. Skipping this timestep...")
+                continue
+
+            params_tot = torch.zeros((self.n_timesteps, 2*(self.n_qubits+self.n_zero_ancilla_qubits+self.n_haar_ancilla_qubits)*self.n_backward_layers), device=self.device)
+            
+            # Load previous parameters (from t+1 to T)
+            if t < self.n_timesteps:
+                for tt in range(t+1, self.n_timesteps+1):
+                    dir, filename = self.get_path(type='bestparams.npy', t=tt)
+                    params_tot[tt-1] = torch.from_numpy(np.load(dir / filename)).to(self.device)
+            
+            # Train current timestep t
+            params, loss_hist = self._train_timestep_t(t, inputs_last_timestep, params_tot, self.n_data, self.learning_rate)
+
+            self._save_results_lastepoch(params.detach().cpu(), loss_hist, t)
+
+
+if __name__ == "__main__":
+    main()

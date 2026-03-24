@@ -3,7 +3,9 @@ from importlib.resources import path
 from src.utils import get_path
 from src.trainers.basic_trainers import BasicTrainer, QDDPMDiffuser, QDDPMGeneratorInitialqstates
 from src.MSQDDPM_angel import MSQDDPMDifusser
+from src.MSQDDPM_angel import WassDistance, sinkhornDistance
 from tqdm import tqdm
+from functools import partial
 import numpy as np
 import torch
 import yaml
@@ -154,8 +156,18 @@ class QDDPMTrainer(BasicTrainer):
 class MSQDDPMTrainer(QDDPMTrainer):
     def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
         super().__init__(config, n_data, n_features, n_timesteps, device=device)
+        self.n_haar_ancilla_qubits = self.config['model']['n_haar_ancilla_qubits']
         self.learning_rate = self.config['training']['learning_rate']
         self.diffusion_schedule_nickname = self.config['model']['diffusion_schedule']['name']
+
+    def _get_loss_fn(self):
+        loss_type = self.config['training'].get('loss_fn', 'wass')
+        if loss_type == 'sinkhorn':
+            return partial(sinkhornDistance, reg=self.config['training']['regularization'])
+        elif loss_type == 'wass':
+            return WassDistance
+        else:
+            raise NotImplementedError('Loss function {loss_type} not implemented.')
 
     def _generate_diffusedstates(self):
         dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
@@ -201,7 +213,7 @@ class MSQDDPMTrainer(QDDPMTrainer):
                 print("Found already trained parameters. Skipping this timestep...")
                 continue
 
-            params_tot = torch.zeros((self.n_timesteps, 2*(self.n_qubits+self.n_ancilla_qubits)*self.n_backward_layers), device=self.device)
+            params_tot = torch.zeros((self.n_timesteps, 2*(self.n_qubits+self.n_ancilla_qubits+self.n_haar_ancilla_qubits)*self.n_backward_layers), device=self.device)
             
             # Load previous parameters (from t+1 to T)
             if t < self.n_timesteps:
