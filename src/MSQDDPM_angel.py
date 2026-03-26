@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import ot
 from functools import partial
+from opt_einsum import contract
 
 K = tc.set_backend("pytorch")
 tc.set_dtype("complex64")
@@ -24,17 +25,40 @@ class MSQDDPMDifusser(nn.Module):
     def _validate_timestep(self, t):
         if not (0 <= t <= self.T):
             raise ValueError(f"Time step t must be in the range [0, {self.T}]. Got t={t}.")
+        
+    def get_noise_schedule(self, type: str, **kwargs):
+        if type == 'linear':
+            qs = np.linspace(0, 1, self.T+1)
+        elif type == 'cosine_exp':
+            def f(t, epsilon=0.008):
+                return np.cos((t / self.T + epsilon) / (1 + epsilon) * np.pi / 2)**2
+            k = kwargs['k'] # The exponent
+            alphas = np.zeros(self.T+1)
+            for t in range(0, self.T+1):
+                alphas[t] = f(t)/f(0)
+            qs = np.zeros(self.T+1)
+            qs[0] = 0.0
+            for t in range(1, self.T+1):
+                qs[t] = (1-alphas[t] / alphas[t-1])**k
+        else:
+            raise NotImplementedError(f"Diffusion schedule type '{type}' is not implemented.")
+        
+        return qs
 
-    def depolarizing_channel_t(self, rhos, t):
+    def depolarizing_channel_t(self, rhos, q):
         '''Apply the depolarizing channel to the input density matrices `rhos` at time step `t`.
         Args:
             rhos: A batch of density matrices of shape (batch_size, 2^n, 2^n).
-            t: The current time step (0 <= t <= T).
+            # t: The current time step (0 <= t <= T).
+            q: the corresponding noise parameter at time step t, which can be obtained from the noise schedule.
         Returns:
             A batch of density matrices after applying the depolarizing channel, of shape (batch_size, 2^n, 2^n).
         '''
-        self._validate_timestep(t)
-        prob = t / self.T
+        # self._validate_timestep(t)
+        # prob = t / self.T
+        prob = q
+
+        # Tensorcircuit's built-in depolarizing channel.
         m = 4**self.n
         prob = prob / m
         kraus_ops = tc.channels.generaldepolarizingchannel(prob, self.n)
@@ -185,7 +209,8 @@ def backCircuit(input, params, n_tot, L):
 
 def compute_superfidelity(Set1, Set2):
     '''
-        calculate the superfidelity between two sets of quantum states
+        calculate the superfidelity (scalar) between two sets of quantum states (returns a matrix of shape [N1, N2]).
+        Meaning: The entry G[i, j] represents the scalar superfidelity value between the $i$-th state of Set1 and the $j$-th state of Set2.
     '''
     term1 = torch.real(torch.einsum('imn,knm->ik', Set1, Set2))
 
@@ -220,3 +245,21 @@ def sinkhornDistance(Set1, Set2, reg=0.1):
     emt = torch.empty(0)
     Sinkhorn_dis = ot.sinkhorn2(emt, emt, M=D, reg=reg)
     return Sinkhorn_dis
+
+def maximum_mean_discrepancy(Set1, Set2):
+    '''
+        a natural measure on the distance between two sets of quantum states
+        definition: 2*d - r1-r2
+        d: mean of inter-distance between Set1 and Set2
+        r1/r2: mean of intra-distance within Set1/Set2
+    '''
+    # Means of superfidelity
+    r11 = torch.mean(compute_superfidelity(Set1, Set1))
+    r22 = torch.mean(compute_superfidelity(Set2, Set2))
+    r12 = torch.mean(compute_superfidelity(Set1, Set2))
+
+    # a natural measure on the distance between two sets, according to trace distance
+    # r11 = 1. - torch.mean(torch.abs(contract('mi,ni->mn', Set1.conj(), Set1))**2)
+    # r22 = 1. - torch.mean(torch.abs(contract('mi,ni->mn', Set2.conj(), Set2))**2)
+    # r12 = 1. - torch.mean(torch.abs(contract('mi,ni->mn', Set1.conj(), Set2))**2)
+    return r11 + r22 - 2*r12 

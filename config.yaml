@@ -23,7 +23,7 @@ training:
   live_plot:
     save: True
     frequency: 50
-  loss_fn: 'sinkhorn' # 'sinkhorn', 'wass'
+  loss_fn: 'mmd' # 'sinkhorn', 'wass', 'mmd'
 dataset:
   dir: 'results_MSQDDPM' # Directory to store the dataset
   name: 'CIRCLEY_1' # e.g. 'MNIST_0', 'CIRCLEY_3'

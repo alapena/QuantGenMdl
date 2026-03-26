@@ -1,7 +1,7 @@
 # from src.trainers.default_trainer import MSQDDPMTrainer
 from src.utils import find_closest_power_of_2
 from src.utils import get_path_MSQDDPM
-from src.MSQDDPM_angel import MSQDDPM, MSQDDPMDifusser, WassDistance, sinkhornDistance
+from src.MSQDDPM_angel import MSQDDPM, MSQDDPMDifusser, WassDistance, sinkhornDistance, maximum_mean_discrepancy
 from src.trainers.basic_trainers import QDDPMGeneratorInitialqstates
 from src.plot import Plotter
 from functools import partial
@@ -61,7 +61,7 @@ class MSQDDPMTrainer():
         self.n_params = 2 * self.model.n_tot * self.model.L
         self.plotter = Plotter()
 
-        self.get_path = partial(get_path_MSQDDPM, self.config, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_zero_ancilla_qubits=self.n_zero_ancilla_qubits, n_haar_ancilla_qubits=self.n_haar_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
+        self.get_path = partial(get_path_MSQDDPM, self.config, diffusion_schedule_nickname=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_zero_ancilla_qubits=self.n_zero_ancilla_qubits, n_haar_ancilla_qubits=self.n_haar_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
 
     def _get_loss_fn(self):
         loss_type = self.config['training'].get('loss_fn', 'wass')
@@ -122,6 +122,8 @@ class MSQDDPMTrainer():
             return partial(sinkhornDistance, reg=self.config['training']['regularization'])
         elif loss_type == 'wass':
             return WassDistance
+        elif loss_type == 'mmd':
+            return maximum_mean_discrepancy
         else:
             raise NotImplementedError('Loss function {loss_type} not implemented.')
 
@@ -139,8 +141,9 @@ class MSQDDPMTrainer():
             if not path.exists():
                 # Generate initial states
                 print("Initial quantum states not found. Generating them...")
-                generator_initialqstates = QDDPMGeneratorInitialqstates(self.config)
-                generator_initialqstates.generate_initialqstates()
+                # generator_initialqstates = QDDPMGeneratorInitialqstates(self.config)
+                generator_initialqstates = MSQDDPMGeneratorInitialqstates(self.config)
+                generator_initialqstates.generate_initialqrhos()
 
             # Everything checked. Diffuse.
             diffuser = MSQDDPMDifusser(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
@@ -239,6 +242,53 @@ class MSQDDPMTrainer():
 
             self._save_results_lastepoch(params.detach().cpu(), loss_hist, t)
 
+class MSQDDPMGeneratorInitialqstates():
+    def __init__(self, config):
+        self.config = config
+
+    def _ndim_cluster0Gen(self, n_data, n_qubits, depolarizing_param, epsilon, seed=None):
+        np.random.seed(seed)
+        states0 = np.zeros((n_data, 2**n_qubits), dtype=np.complex64)
+        states0[:, 0] = 1.
+        states1 = np.zeros((n_data, 2**n_qubits), dtype=np.complex64)
+        states1[:, 1] = 1.
+
+        rng = np.random.default_rng(seed=seed)
+        re_c = rng.normal(loc=0.0, scale=1.0, size=n_data)
+        im_c = rng.normal(loc=0.0, scale=1.0, size=n_data)
+        c = re_c + 1j*im_c
+        c = c[:, np.newaxis]
+        states = states0 + epsilon*c*states1
+        states /= np.linalg.norm(states, axis=1, keepdims=True)
+        
+        rhos = (1-depolarizing_param)*np.einsum('ij,ik->ijk', states, np.conj(states)) + depolarizing_param*np.eye(2**n_qubits)/2**n_qubits
+        return rhos
+
+    def _get_dataset(self):
+        seed = self.config['seed']
+        dataset_config = self.config["dataset"]
+        name = dataset_config["name"]
+        parts = name.split('_')
+        type = parts[0]
+
+        if type == 'CLUSTER0':
+            size = dataset_config['maxsize']
+            size = size if size is not None else 60000
+            n_qubits = parts[1]
+            dataset = self._ndim_cluster0Gen(size, int(n_qubits), depolarizing_param= 0.0005, epsilon=0.08, seed=seed)
+        
+        return dataset
+
+    def generate_initialqrhos(self):
+        dataset = self._get_dataset()
+
+        # Save the generated quantum states
+        n_data = dataset.shape[0]
+        n_features = dataset.shape[1]
+        _, n_qubits = find_closest_power_of_2(n_features, return_power=True)
+        dir, filename = get_path_MSQDDPM(self.config, type='initialqstates.npy', n_data=n_data, n_features=n_features, n_qubits=n_qubits)
+        np.save(dir / filename, dataset)
+        print(f"Dataset saved in {dir / filename}")
 
 if __name__ == "__main__":
     main()
