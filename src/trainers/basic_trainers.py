@@ -1,7 +1,7 @@
 from tqdm import tqdm
 
 from src.utils import get_dataset, get_diffusion_weights, get_path, find_closest_power_of_2
-from src.QDDPM_torch_angel import QDDPM, DiffusionModel, WassDistance, sinkhornDistance
+from src.QDDPM_torch_angel import QDDPM, QDDPMDiffuser, WassDistance, sinkhornDistance
 from src.MSQDDPM_angel import MSQDDPM
 from src.plot import Plotter
 from functools import partial
@@ -107,25 +107,25 @@ class QDDPMDiffuser():
         # self.diffusion_schedule_hrescale = self.config["model"]["diffusion_schedule"]["hrescale"]
         _, self.n_qubits = find_closest_power_of_2(n_features, return_power=True)
     
-    def diffuse(self):
-        dir, filename = get_path(self.config, type='initialqstates.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits) # Editable
-        dataset = torch.from_numpy(np.load(dir / filename)).to(self.device)
-        model = DiffusionModel(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
-        diffusion_weights = get_diffusion_weights(self.config, self.device)
+    # def diffuse(self):
+    #     dir, filename = get_path(self.config, type='initialqstates.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits) # Editable
+    #     dataset = torch.from_numpy(np.load(dir / filename)).to(self.device)
+    #     model = QDDPMDiffuser(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
+    #     diffusion_weights = get_diffusion_weights(self.config, self.device)
 
-        states = torch.zeros((self.n_timesteps+1, self.n_data, 2**self.n_qubits), device=self.device, dtype=torch.complex64)
-        states[0] = dataset
-        for t in tqdm(range(1, self.n_timesteps+1)):
-            # states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
-            states[t] = model.set_diffusionData_t(t, states[t-1], diffusion_weights[:t], seed=t)
-            states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
+    #     states = torch.zeros((self.n_timesteps+1, self.n_data, 2**self.n_qubits), device=self.device, dtype=torch.complex64)
+    #     states[0] = dataset
+    #     for t in tqdm(range(1, self.n_timesteps+1)):
+    #         # states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
+    #         states[t] = model.set_diffusionData_t(t, states[t-1], diffusion_weights[:t], seed=t)
+    #         states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
 
-        # name = self.diffusion_schedule_name + str(self.diffusion_schedule_slope) + "-" + str(self.diffusion_schedule_vrescale) + "-" + str(self.diffusion_schedule_hrescale)
-        name = self.diffusion_schedule_name + str(self.diffusion_schedule_slope)
-        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=name, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
-        np.save(dir / filename, states.detach().cpu().numpy())
+    #     # name = self.diffusion_schedule_name + str(self.diffusion_schedule_slope) + "-" + str(self.diffusion_schedule_vrescale) + "-" + str(self.diffusion_schedule_hrescale)
+    #     name = self.diffusion_schedule_name + str(self.diffusion_schedule_slope)
+    #     dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=name, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
+    #     np.save(dir / filename, states.detach().cpu().numpy())
 
-        print(f"Saved diffused quantum states in {dir / filename}")
+    #     print(f"Saved diffused quantum states in {dir / filename}")
 
 
 class QDDPMGeneratorInitialqstates():

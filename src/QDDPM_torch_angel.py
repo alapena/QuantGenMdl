@@ -13,7 +13,7 @@ from itertools import combinations
 K = tc.set_backend('pytorch')
 tc.set_dtype('complex64')
 
-class DiffusionModel(nn.Module):
+class QDDPMDiffuser(nn.Module):
     def __init__(self, n, T, Ndata, device='cpu'):
         '''
         the diffusion quantum circuit model to scramble arbitrary set of states to Haar random states

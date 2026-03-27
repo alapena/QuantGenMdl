@@ -1,4 +1,4 @@
-from src.QDDPM_torch_angel import DiffusionModel
+from src.QDDPM_torch_angel import QDDPMDiffuser
 from src.trainers.basic_trainers import QDDPMDiffuser, QDDPMGeneratorInitialqstates
 from src.utils import get_path, set_device, find_closest_power_of_2
 from pathlib import Path

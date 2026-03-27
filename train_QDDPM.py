@@ -1,7 +1,7 @@
 # from src.trainers.default_trainer import MSQDDPMTrainer
-from src.utils import find_closest_power_of_2, get_diffusion_schedule_nickname
+from src.utils import find_closest_power_of_2, get_diffusion_schedule_nickname, get_diffusion_weights
 from src.utils import get_path
-from src.QDDPM_torch_angel import QDDPM, QDDPMDifusser
+from src.QDDPM_torch_angel import QDDPM, QDDPMDiffuser
 from src.trainers.basic_trainers import QDDPMGeneratorInitialqstates
 from src.plot import Plotter
 from functools import partial
@@ -128,20 +128,26 @@ class QDDPMTrainer():
             if not path.exists():
                 # Generate initial states
                 print("Initial quantum states not found. Generating them...")
-                # generator_initialqstates = QDDPMGeneratorInitialqstates(self.config)
-                generator_initialqstates = MSQDDPMGeneratorInitialqstates(self.config)
+                generator_initialqstates = QDDPMGeneratorInitialqstates(self.config)
+                # generator_initialqstates = MSQDDPMGeneratorInitialqstates(self.config)
                 generator_initialqstates.generate_initialqrhos()
 
             # Everything checked. Diffuse.
-            diffuser = MSQDDPMDifusser(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
-            initialqstates = torch.from_numpy(np.load(dir/filename)).to(self.device)
-            rhos_initial = diffuser.density_matrices_ensemble_from_pure_states_ensemble(initialqstates)
-            rhos_diffused = torch.zeros((self.n_timesteps+1, self.n_data, self.n_features, self.n_features), dtype=torch.complex64, device=self.device)
-            rhos_diffused[0] = rhos_initial
+            dir, filename = self.get_path(type='initialqstates.npy')
+            dataset = torch.from_numpy(np.load(dir / filename)).to(self.device)
+
+            diffuser = QDDPMDiffuser(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
+            diffusion_weights = get_diffusion_weights(self.config, self.device)
+            states = torch.zeros((self.n_timesteps+1, self.n_data, 2**self.n_qubits), device=self.device, dtype=torch.complex64)
+            states[0] = dataset
             for t in tqdm(range(1, self.n_timesteps+1)):
-                rhos_diffused[t] = diffuser.depolarizing_channel_t(rhos_diffused[0], t)
-            dir, filename = self.get_path(type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname)
-            np.save(dir/filename, rhos_diffused.cpu().numpy())
+                # states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
+                states[t] = diffuser.set_diffusionData_t(t, states[t-1], diffusion_weights[:t], seed=t)
+                states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
+
+            dir, filename = self.get_path(type='diffusedqstates.npy')
+            np.save(dir/filename, states.cpu().numpy())
+            print(f"Saved diffused quantum states in {dir / filename}")
 
 
     def _train_timestep_t(self, t, inputs_last_timestep, params_tot, n_data, lr):
