@@ -1,7 +1,7 @@
 # from src.trainers.default_trainer import MSQDDPMTrainer
 from src.utils import find_closest_power_of_2, get_diffusion_schedule_nickname
 from src.utils import get_path
-from src.MSQDDPM_angel import MSQDDPM, MSQDDPMDifusser
+from src.QDDPM_torch_angel import QDDPM, QDDPMDifusser
 from src.trainers.basic_trainers import QDDPMGeneratorInitialqstates
 from src.plot import Plotter
 from functools import partial
@@ -21,24 +21,21 @@ def main():
 
     n_data = config['dataset']['maxsize'] # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
-    n_qubits = int(config['dataset']['name'].split('_')[1])
-    n_features = 2**n_qubits#config['dataset']['transforms']['resize']**2 # EDITABLE
+    # n_qubits = int(config['dataset']['name'].split('_')[1])
+    n_features = config['dataset']['transforms']['resize']**2 # EDITABLE
     
     # values = [2,3,4,5,6,7,8]
     # for i, value in enumerate(values):
         # print(f"---TRAINING WITH n_ancilla_qubits={value}---")
         # config["model"]["n_ancilla_qubits"] = value
 
-    trainer = MSQDDPMTrainer(config, n_data, n_features, n_timesteps, device=device)
+    trainer = QDDPMTrainer(config, n_data, n_features, n_timesteps, device=device)
     trainer.train_all_timesteps()
         
     # trainer.train_single_timestep(t=40)
 
 
-
-
-
-class MSQDDPMTrainer():
+class QDDPMTrainer():
     def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
         self.device = device
         self.config = config
@@ -56,7 +53,7 @@ class MSQDDPMTrainer():
         self.learning_rate = self.config['training']['learning_rate']
         self.diffusion_schedule_nickname = get_diffusion_schedule_nickname(self.config)
 
-        self.model = MSQDDPM(self.n_qubits, self.n_zero_ancilla_qubits, self.n_haar_ancilla_qubits, self.n_timesteps, self.n_backward_layers, seed=self.seed, device=self.device).to(self.device)
+        self.model = QDDPM(self.n_qubits, self.n_zero_ancilla_qubits, self.n_haar_ancilla_qubits, self.n_timesteps, self.n_backward_layers, seed=self.seed, device=self.device).to(self.device)
 
         self.n_params = 2 * self.model.n_tot * self.model.L
         self.plotter = Plotter()
@@ -64,7 +61,7 @@ class MSQDDPMTrainer():
         self.get_path = partial(get_path, self.config, diffusion_schedule_nickname=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_zero_ancilla_qubits=self.n_zero_ancilla_qubits, n_haar_ancilla_qubits=self.n_haar_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
 
     def _get_loss_fn(self):
-        from src.MSQDDPM_angel import WassDistance, sinkhornDistance, maximum_mean_discrepancy
+        from src.QDDPM_torch_angel import WassDistance, sinkhornDistance, maximum_mean_discrepancy
         loss_type = self.config['training'].get('loss_fn', 'wass')
         if loss_type == 'sinkhorn':
             return partial(sinkhornDistance, reg=self.config['training']['regularization'])
@@ -116,7 +113,6 @@ class MSQDDPMTrainer():
 
         dir, filename = self.get_path(type='finallosshist.npy', t=t)
         np.save(dir / filename, loss_hist)
-
 
     def _generate_diffusedstates(self):
         dir, filename = self.get_path(type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname)
