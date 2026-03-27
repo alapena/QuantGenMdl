@@ -129,8 +129,7 @@ class QDDPMTrainer():
                 # Generate initial states
                 print("Initial quantum states not found. Generating them...")
                 generator_initialqstates = QDDPMGeneratorInitialqstates(self.config)
-                # generator_initialqstates = MSQDDPMGeneratorInitialqstates(self.config)
-                generator_initialqstates.generate_initialqrhos()
+                generator_initialqstates.generate_initialqstates()
 
             # Everything checked. Diffuse.
             dir, filename = self.get_path(type='initialqstates.npy')
@@ -235,27 +234,27 @@ class QDDPMTrainer():
 
             self._save_results_lastepoch(params.detach().cpu(), loss_hist, t)
 
-class MSQDDPMGeneratorInitialqstates():
+class QDDPMGeneratorInitialqstates():
     def __init__(self, config):
         self.config = config
 
-    def _ndim_cluster0Gen(self, n_data, n_qubits, depolarizing_param, epsilon, seed=None):
+    def _ndim_cluster0Gen(self, n_data, n_qubits, epsilon, seed=None):
         np.random.seed(seed)
         states0 = np.zeros((n_data, 2**n_qubits), dtype=np.complex64)
         states0[:, 0] = 1.
-        states1 = np.zeros((n_data, 2**n_qubits), dtype=np.complex64)
-        states1[:, 1] = 1.
+        statesi = np.zeros((2**n_qubits-1, n_data, 2**n_qubits), dtype=np.complex64)
+        for i in range(1, 2**n_qubits):
+            statesi[i-1, :, i] = 1. + 0.j
 
         rng = np.random.default_rng(seed=seed)
-        re_c = rng.normal(loc=0.0, scale=1.0, size=n_data)
-        im_c = rng.normal(loc=0.0, scale=1.0, size=n_data)
+        re_c = rng.normal(loc=0.0, scale=1.0, size=(2**n_qubits-1, n_data))
+        im_c = rng.normal(loc=0.0, scale=1.0, size=(2**n_qubits-1, n_data))
         c = re_c + 1j*im_c
-        c = c[:, np.newaxis]
-        states = states0 + epsilon*c*states1
+        c = c[:, :, np.newaxis]
+        statesi = epsilon*c*statesi
+        states = states0 + np.sum(statesi, axis=0)
         states /= np.linalg.norm(states, axis=1, keepdims=True)
-        
-        rhos = (1-depolarizing_param)*np.einsum('ij,ik->ijk', states, np.conj(states)) + depolarizing_param*np.eye(2**n_qubits)/2**n_qubits
-        return rhos
+        return states
 
     def _get_dataset(self):
         seed = self.config['seed']
@@ -268,17 +267,19 @@ class MSQDDPMGeneratorInitialqstates():
             size = dataset_config['maxsize']
             size = size if size is not None else 60000
             n_qubits = parts[1]
-            dataset = self._ndim_cluster0Gen(size, int(n_qubits), depolarizing_param= 0.0005, epsilon=0.08, seed=seed)
+            dataset = self._ndim_cluster0Gen(size, int(n_qubits), epsilon=0.06, seed=seed)
         
         return dataset
 
-    def generate_initialqrhos(self):
+    def generate_initialqstates(self):
         dataset = self._get_dataset()
 
         # Save the generated quantum states
         n_data = dataset.shape[0]
         n_features = dataset.shape[1]
         _, n_qubits = find_closest_power_of_2(n_features, return_power=True)
+        dims_to_pad = 2**n_qubits-dataset.shape[1]
+        dataset = np.pad(dataset, ((0,0), (0,dims_to_pad, 0)), 'constant', constant_values=0) if dims_to_pad > 0 else dataset
         dir, filename = get_path(self.config, type='initialqstates.npy', n_data=n_data, n_features=n_features, n_qubits=n_qubits)
         np.save(dir / filename, dataset)
         print(f"Dataset saved in {dir / filename}")
