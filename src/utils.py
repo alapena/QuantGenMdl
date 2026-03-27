@@ -230,6 +230,10 @@ def get_path(config: Dict, type: str, new_subfolder: str = None, suffix: str = N
             dir = modeldir
             filename = f"config.yaml"
 
+        elif type == 'tensorboard_logs':
+            dir = modeldir / "tensorboard_logs"
+            filename = ""
+
         else:
             raise NotImplementedError(f"Path type {type} not implemented.")
 
