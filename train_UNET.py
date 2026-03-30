@@ -22,8 +22,8 @@ def main():
 
     n_data = config['dataset']['maxsize'] # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
-    n_qubits = int(config['dataset']['name'].split('_')[1])
-    n_features = 2**n_qubits # config['dataset']['transforms']['resize']**2 # EDITABLE
+    # n_qubits = int(config['dataset']['name'].split('_')[1])
+    n_features = config['dataset']['transforms']['resize']**2 # EDITABLE
     
     # values = [2,3,4,5,6,7,8]
     # for i, value in enumerate(values):
@@ -70,7 +70,7 @@ class UNetTrainer():
         if config_lr_scheduler['type'] == 'CosineAnnealingWarmRestarts':
             return partial(torch.optim.lr_scheduler.CosineAnnealingWarmRestarts, **kwargs)
         elif config_lr_scheduler['type'] == 'OneCycleLR':
-            return partial(torch.optim.lr_scheduler.OneCycleLR, max_lr=self.learning_rate, **kwargs)        
+            return partial(torch.optim.lr_scheduler.OneCycleLR, total_steps=self.n_epochs, max_lr=self.learning_rate, **kwargs)        
         elif config_lr_scheduler['type'] == 'ctt':
             return NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
         else:
@@ -131,7 +131,7 @@ class UNetTrainer():
             states[0] = dataset
             for t in tqdm(range(1, self.n_timesteps+1)):
                 # states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
-                states[t] = diffuser.set_diffusionData_t(t, states[t-1], diffusion_weights[:t], seed=t)
+                states[t] = diffuser.set_diffusionData_t_single_step(t, states[t-1], diffusion_weights[:t], seed=t)
                 states[t] = states[t] / torch.norm(states[t], dim=1, keepdim=True) # Avoid numerical errors
 
             dir, filename = self.get_path(type='diffusedqstates.npy')

@@ -126,6 +126,27 @@ class QDDPMDiffuser(nn.Module):
 
         return states
 
+    def set_diffusionData_t_single_step(self, t, input_state, diff_hs, seed):
+        """
+        Apply exactly ONE step of diffusion (step t).
+        """
+        torch.manual_seed(seed)
+        # We only need angles for the current step 't'
+        # Note: Adjust indexing to ensure you pick the correct slice of diff_hs
+        phis = torch.rand(self.Ndata, 3*self.n, device=self.device)*np.pi/4. - np.pi/8.
+        phis = phis * diff_hs[-1] # Use the latest weight
+        
+        if self.n > 1:
+            gs = torch.rand(self.Ndata, 1, device=self.device)*0.2 + 0.4
+            gs *= diff_hs[-1]
+
+        # Use the 'from_tminus1' logic directly for exactly one step
+        if self.n > 1:
+            # Note: We pass 1 here because we are only doing one step of circuit application
+            return self.scrambleCircuit_t_from_tminus1_vmap(1, input_state, phis, gs)
+        else:
+            return self.scrambleCircuit_t_from_tminus1_vmap(1, input_state, phis)
+
 
 def backCircuit(input, params, n_tot, L):
     '''
