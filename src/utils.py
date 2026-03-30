@@ -172,7 +172,7 @@ def get_diffusion_weights(config, device='cpu'):
     return diffusion_weights
 
 
-def get_path(config: Dict, type: str, new_subfolder: str = None, suffix: str = None, **kwargs):
+def get_path(config: Dict, type: str, modeltype: str = 'MSQDDPM', new_subfolder: str = None, suffix: str = None, **kwargs):
     dataset_config = config['dataset']
     datasetname = dataset_config['name']
     sharedir = False
@@ -190,21 +190,16 @@ def get_path(config: Dict, type: str, new_subfolder: str = None, suffix: str = N
         filename = f"wassdistforward_{datasetname}_schedule{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
 
     else:
-        modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_nza{kwargs['n_zero_ancilla_qubits']}_nha{kwargs['n_haar_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
+        if modeltype == 'MSQDDPM':
+            modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_nza{kwargs['n_zero_ancilla_qubits']}_nha{kwargs['n_haar_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
+        elif modeltype == 'UNet':
+            modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}"
         sharedir = True
 
     if sharedir:
         if type == 'wassdistbackwardtrain.npy':
             dir = modeldir
             filename = f"wassdistbackwardtrain.npy"
-
-        elif type == 'wassdistbackwardtest.npy':
-            dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
-            filename = f"wassdistbackwardtest.npy"
-
-        elif type == 'sinkdistbackwardtrain.npy':
-            dir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_schedule{kwargs['diffusion_schedule']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_na{kwargs['n_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
-            filename = f"sinkdistbackwardtest.npy"
 
         elif type == 'bestparams.npy':
             dir = modeldir / "bestresults"
@@ -282,12 +277,31 @@ def get_dataset(config, verbose=True):
             res = (res[..., None] * components[:, i, None, :]).reshape(N_data, -1)
 
         return res.astype(np.complex64)
+    
+    def _ndim_cluster0Gen(n_data, n_qubits, depolarizing_param, epsilon, seed=None):
+        np.random.seed(seed)
+        states0 = np.zeros((n_data, 2**n_qubits), dtype=np.complex64)
+        states0[:, 0] = 1.
+        states1 = np.zeros((n_data, 2**n_qubits), dtype=np.complex64)
+        states1[:, 1] = 1.
+
+        rng = np.random.default_rng(seed=seed)
+        re_c = rng.normal(loc=0.0, scale=1.0, size=n_data)
+        im_c = rng.normal(loc=0.0, scale=1.0, size=n_data)
+        c = re_c + 1j*im_c
+        c = c[:, np.newaxis]
+        states = states0 + epsilon*c*states1
+        states /= np.linalg.norm(states, axis=1, keepdims=True)
+        
+        # rhos = (1-depolarizing_param)*np.einsum('ij,ik->ijk', states, np.conj(states)) + depolarizing_param*np.eye(2**n_qubits)/2**n_qubits
+        return states
 
 
     dataset_config = config["dataset"]
     name = dataset_config["name"]
     parts = name.split('_')
     type = parts[0]
+    seed = config["seed"]
     if type == 'MNIST':
         from torchvision import datasets
         transform = _apply_torchvision_transforms(dataset_config)
@@ -316,6 +330,12 @@ def get_dataset(config, verbose=True):
         size = size if size is not None else 60000
         n_qubits = parts[1]
         dataset = _ndim_circleYGen(size, int(n_qubits), config.get('seed', None))
+
+    elif type == 'CLUSTER0':
+            size = dataset_config['maxsize']
+            size = size if size is not None else 60000
+            n_qubits = parts[1]
+            dataset = _ndim_cluster0Gen(size, int(n_qubits), depolarizing_param= 0, epsilon=0.08, seed=seed)
 
     else:
         raise NotImplementedError(f"Dataset type {type} not implemented.")

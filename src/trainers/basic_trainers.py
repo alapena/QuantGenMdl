@@ -92,20 +92,20 @@ class BasicTrainer():
 
 
 
-class QDDPMDiffuser():
-    def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
-        self.config = config
-        self.device = device
+# class QDDPMDiffuser():
+#     def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
+#         self.config = config
+#         self.device = device
 
-        self.n_data = n_data
-        self.n_features = n_features
-        self.n_timesteps = n_timesteps
+#         self.n_data = n_data
+#         self.n_features = n_features
+#         self.n_timesteps = n_timesteps
 
-        self.diffusion_schedule_name = self.config["model"]["diffusion_schedule"]["name"]
-        self.diffusion_schedule_slope = self.config["model"]["diffusion_schedule"]["slope"]
-        # self.diffusion_schedule_vrescale = self.config["model"]["diffusion_schedule"]["vrescale"]
-        # self.diffusion_schedule_hrescale = self.config["model"]["diffusion_schedule"]["hrescale"]
-        _, self.n_qubits = find_closest_power_of_2(n_features, return_power=True)
+#         self.diffusion_schedule_name = self.config["model"]["diffusion_schedule"]["name"]
+#         self.diffusion_schedule_slope = self.config["model"]["diffusion_schedule"]["slope"]
+#         # self.diffusion_schedule_vrescale = self.config["model"]["diffusion_schedule"]["vrescale"]
+#         # self.diffusion_schedule_hrescale = self.config["model"]["diffusion_schedule"]["hrescale"]
+#         _, self.n_qubits = find_closest_power_of_2(n_features, return_power=True)
     
     # def diffuse(self):
     #     dir, filename = get_path(self.config, type='initialqstates.npy', n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits) # Editable

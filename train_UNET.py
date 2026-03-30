@@ -22,7 +22,7 @@ def main():
 
     n_data = config['dataset']['maxsize'] # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
-    n_qubits = 1 #int(config['dataset']['name'].split('_')[1])
+    n_qubits = int(config['dataset']['name'].split('_')[1])
     n_features = 2**n_qubits # config['dataset']['transforms']['resize']**2 # EDITABLE
     
     # values = [2,3,4,5,6,7,8]
@@ -31,7 +31,7 @@ def main():
         # config["model"]["n_ancilla_qubits"] = value
 
     trainer = UNetTrainer(config, n_data, n_features, n_timesteps, device=device)
-    trainer.train_all_timesteps()
+    trainer.training_loop()
 
 
 class UNetTrainer():
@@ -43,36 +43,34 @@ class UNetTrainer():
         self.n_timesteps = n_timesteps
 
         _, self.n_qubits = find_closest_power_of_2(n_features, return_power=True)
-        self.n_zero_ancilla_qubits = self.config['model']['n_zero_ancilla_qubits']
-        self.n_haar_ancilla_qubits = self.config['model']['n_haar_ancilla_qubits']
-        self.n_ancilla_qubits = self.n_zero_ancilla_qubits + self.n_haar_ancilla_qubits
-        self.n_backward_layers = self.config['model']['n_backward_layers']
         self.n_epochs = self.config['training']['n_epochs']
         self.seed = self.config['seed']
         self.learning_rate = self.config['training']['learning_rate']
         self.diffusion_schedule_nickname = get_diffusion_schedule_nickname(self.config)
-        self.n_params = 2 * self.model.n_tot * self.model.L
         self.plotter = Plotter()
-        self.get_path = partial(get_path, self.config, diffusion_schedule_nickname=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_zero_ancilla_qubits=self.n_zero_ancilla_qubits, n_haar_ancilla_qubits=self.n_haar_ancilla_qubits, n_timesteps=self.n_timesteps, n_backward_layers=self.n_backward_layers)
+        self.get_path = partial(get_path, self.config, modeltype='UNet', diffusion_schedule_nickname=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
 
         self.model = UNet1DModel(sample_size=self.n_features, **self.config['model']['unet_config']).to(self.device)
 
     def _get_loss_fn(self):
-        from src.QDDPM_torch_angel import WassDistance, sinkhornDistance, maximum_mean_discrepancy
+        # from src.QDDPM_torch_angel import WassDistance, sinkhornDistance, maximum_mean_discrepancy
         loss_type = self.config['training'].get('loss_fn', 'wass')
         if loss_type == 'sinkhorn':
-            return partial(sinkhornDistance, reg=self.config['training']['regularization'])
+            return NotImplementedError('Loss function {loss_type} not implemented.')
         elif loss_type == 'wass':
-            return WassDistance
+            return NotImplementedError('Loss function {loss_type} not implemented.')
+        elif loss_type == 'mse':
+            return torch.nn.MSELoss()
         else:
             raise NotImplementedError('Loss function {loss_type} not implemented.')
     
     def _get_lr_scheduler(self):
         config_lr_scheduler = self.config['training'].get('lr_scheduler', 'None')
+        kwargs = {k: v for k, v in config_lr_scheduler.items() if k != 'type'}
         if config_lr_scheduler['type'] == 'CosineAnnealingWarmRestarts':
-            T_0 = config_lr_scheduler['T_0']
-            T_mult = config_lr_scheduler['T_mult']
-            return partial(torch.optim.lr_scheduler.CosineAnnealingWarmRestarts, T_0=T_0, T_mult=T_mult)
+            return partial(torch.optim.lr_scheduler.CosineAnnealingWarmRestarts, **kwargs)
+        elif config_lr_scheduler['type'] == 'OneCycleLR':
+            return partial(torch.optim.lr_scheduler.OneCycleLR, max_lr=self.learning_rate, **kwargs)        
         elif config_lr_scheduler['type'] == 'ctt':
             return NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
         else:
@@ -84,7 +82,7 @@ class UNetTrainer():
             yaml.dump(self.config, file, default_flow_style=False, sort_keys=False)
 
     def _save_best_checkpoint(self, optimizer, lr_scheduler, epoch, best_loss):
-        dir, filename = self.get_path(type='bestparams.npy')
+        dir, filename = self.get_path(type='bestparams.npy', t=epoch)
         # self.model.save_pretrained(dir) # We save both: unet architecture (with parameters)
         torch.save({ 
             'model_state_dict': self.model.state_dict(), # and parameters inside torch file.
@@ -95,7 +93,7 @@ class UNetTrainer():
         }, dir / "bestmodel.pt") 
 
     def _save_last_checkpoint(self, optimizer, lr_scheduler, epoch, final_loss, best_loss):
-        dir, filename = self.get_path(type='finalparams.npy')
+        dir, filename = self.get_path(type='finalparams.npy', t=epoch)
         # self.model.save_pretrained(dir) # We save both: unet architecture (with parameters)
         torch.save({ 
             'model_state_dict': self.model.state_dict(), # and parameters inside torch file.
@@ -143,27 +141,34 @@ class UNetTrainer():
     def training_loop(self):
         self._save_config()
         self._generate_diffusedstates()
-        writer = SummaryWriter(log_dir=self.get_path(type='tensorboard_logs'))
+        dir, filename = self.get_path(type='tensorboard_logs')
+        writer = SummaryWriter(log_dir=dir)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         lr_scheduler = self._get_lr_scheduler()(optimizer)
         lossfn = self._get_loss_fn()
         dir, filename = self.get_path(type='diffusedqstates.npy')
-        targets = torch.from_numpy(np.load(dir/filename)).to(self.device) # [T+1, n_data, n_features]
-        targets = targets[:, :, None, :] # [T+1, n_data, n_channels=1, n_features]
+        targets = torch.from_numpy(np.load(dir/filename)).to(self.device) # [T+1, n_data, n_features (complex)]
+        targets = torch.view_as_real(targets) # [T+1, n_data, n_features (real), 2]
+        targets = targets.permute(0, 1, 3, 2) # [T+1, n_data, n_channels=2, n_features]
+        # targets = targets[:, :, None, :] # [T+1, n_data, n_channels=1, n_features]
         inputs_last_timestep = targets[-1] # The most diffused states as inputs
 
         last_save = 0
         best_loss = float('inf')
+        generator = torch.Generator(device=self.device).manual_seed(self.seed)
         pbar = tqdm(range(self.n_epochs))
         self.model.train()
         for epoch in pbar:
             pbar.set_description(f"Epoch {epoch}/{self.n_epochs}")
 
+            optimizer.zero_grad()
+
             timesteps = torch.randint(
-                0, self.n_timesteps, (self.n_data,), device=inputs_last_timestep.device,
+                0, self.n_timesteps, (self.n_data,), generator=generator, device=inputs_last_timestep.device,
                 dtype=torch.int64
             )
-            noisy_states = targets[timesteps, :, :, :]
+            indexs = torch.randint(0, self.n_data, (self.n_data,), generator=generator, device=inputs_last_timestep.device)
+            noisy_states = targets[timesteps, indexs, :, :] # [n_data, n_channels=2, n_features]
             pred = self.model(noisy_states, timesteps, return_dict=False)[0] # [n_data, n_channels=1, n_features]
             loss = lossfn(pred, noisy_states)
 
@@ -189,3 +194,7 @@ class UNetTrainer():
             writer.add_scalar('Loss/train', loss_value, epoch)
             writer.add_scalar('Learning Rate', lr_scheduler.get_last_lr()[0], epoch)
         self._save_last_checkpoint(optimizer, lr_scheduler, epoch, final_loss=loss_value, best_loss=best_loss)
+        writer.flush()
+
+if __name__ == "__main__":
+    main()
