@@ -2,7 +2,7 @@ device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 seed: 0
 model:
   # name: 'MSQDDPM' # 'QDDPM', 'MSQDDPM'
-  n_timesteps: 20 # Number of time steps T
+  n_timesteps: 40 # Number of time steps T
   'diffusion_schedule': 
     'name': 'linear'
     'slope': 1.3
@@ -14,12 +14,14 @@ model:
     in_channels: 2
     out_channels: 2
     layers_per_block: 2
-    block_out_channels: [64, 128]
+    block_out_channels: [64, 128, 256]
     down_block_types: [
       "DownBlock1D",
       "AttnDownBlock1D",
+      "DownBlock1D"
     ]
     up_block_types: [
+      "UpBlock1D",
       "AttnUpBlock1D",
       "UpBlock1D"
     ]
@@ -31,15 +33,19 @@ training:
   overwrite_saves: False
   batch_size: null # If null, it will be set to the size of the training dataset
   n_epochs: 5000
-  learning_rate: 0.005
+  learning_rate: 0.001
   lr_scheduler: 
-    type: 'OneCycleLR' # 'CosineAnnealingWarmRestarts', 'ctt',
-    anneal_strategy: linear
+    type: 'LinearLR' # 'CosineAnnealingWarmRestarts', 'ctt',
+    start_factor: 1
+    end_factor: 0.01
+    total_iters: 1000
   regularization: 0.03
   # live_plot:
   #   save: True
   #   frequency: 50
   loss_fn: 'mse' # 'sinkhorn', 'wass', 'mmd', 'mse'
+  loss_fn_kwargs:
+    lamd: 0.01
 dataset:
   dir: 'results_UNet' # Directory to store the dataset
   name: 'MNIST_1' # e.g. 'MNIST_0', 'CIRCLEY_3'

@@ -61,16 +61,25 @@ class UNetTrainer():
             return NotImplementedError('Loss function {loss_type} not implemented.')
         elif loss_type == 'mse':
             return torch.nn.MSELoss()
+        elif loss_type == 'mse_and_norm':
+            return partial(mse_and_norm_loss, **self.config['training']['loss_fn_kwargs'])
         else:
             raise NotImplementedError('Loss function {loss_type} not implemented.')
     
     def _get_lr_scheduler(self):
         config_lr_scheduler = self.config['training'].get('lr_scheduler', 'None')
+        type = config_lr_scheduler['type']
         kwargs = {k: v for k, v in config_lr_scheduler.items() if k != 'type'}
         if config_lr_scheduler['type'] == 'CosineAnnealingWarmRestarts':
             return partial(torch.optim.lr_scheduler.CosineAnnealingWarmRestarts, **kwargs)
         elif config_lr_scheduler['type'] == 'OneCycleLR':
             return partial(torch.optim.lr_scheduler.OneCycleLR, total_steps=self.n_epochs, max_lr=self.learning_rate, **kwargs)        
+        elif type == 'CosineAnnealingLR':
+            return partial(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=self.n_epochs, **kwargs)
+        elif type == 'ExponentialLR':
+            return partial(torch.optim.lr_scheduler.ExponentialLR, **kwargs)
+        elif type == 'LinearLR':
+            return partial(torch.optim.lr_scheduler.LinearLR, **kwargs)
         elif config_lr_scheduler['type'] == 'ctt':
             return NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
         else:
@@ -169,8 +178,13 @@ class UNetTrainer():
             )
             indexs = torch.randint(0, self.n_data, (self.n_data,), generator=generator, device=inputs_last_timestep.device)
             noisy_states = targets[timesteps, indexs, :, :] # [n_data, n_channels=2, n_features]
-            pred = self.model(noisy_states, timesteps, return_dict=False)[0] # [n_data, n_channels=1, n_features]
-            loss = lossfn(pred, noisy_states)
+            pred = self.model(noisy_states, timesteps, return_dict=False)[0] # [n_data, n_channels=2, n_features]
+            # Normalize
+            norms = torch.sqrt(torch.pow(pred, 2).sum(dim=1).sum(dim=1))
+            pred = pred / norms.reshape(pred.shape[0], 1, 1)
+            
+
+            loss, mse_term, norm_term = lossfn(pred, noisy_states, return_terms=True)
 
             loss_value = loss.detach().cpu()
             loss.backward()
@@ -193,8 +207,26 @@ class UNetTrainer():
             # Save and plot stats
             writer.add_scalar('Loss/train', loss_value, epoch)
             writer.add_scalar('Learning Rate', lr_scheduler.get_last_lr()[0], epoch)
+            writer.add_scalar('Average norm before hardcoding', norms.mean(), epoch)
+            writer.add_scalar('Loss_mse', mse_term, epoch)
+            writer.add_scalar('Loss_norm', norm_term, epoch)
         self._save_last_checkpoint(optimizer, lr_scheduler, epoch, final_loss=loss_value, best_loss=best_loss)
         writer.flush()
+
+
+def mse_and_norm_loss(pred, true, lambd=0.01, return_terms=False):
+    mse = torch.nn.MSELoss()
+
+    norms = torch.sqrt(torch.pow(pred, 2).sum(dim=1).sum(dim=1))
+    norms = norms.reshape(pred.shape[0], 1, 1)
+    norm_term = lambd * mse(norms, torch.ones(pred.shape[0], 1, 1))
+
+    mse_term = mse(pred, true)
+
+    if return_terms:
+        return mse_term + norm_term, mse_term, norm_term
+    else:
+        return mse_term + norm_term
 
 if __name__ == "__main__":
     main()

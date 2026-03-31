@@ -183,11 +183,11 @@ def get_path(config: Dict, type: str, modeltype: str = 'MSQDDPM', new_subfolder:
     
     elif type == 'diffusedqstates.npy':
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'diffusedqstates'
-        filename = f"diffusedqstates_{datasetname}_schedule{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
+        filename = f"diffusedqstates_{datasetname}_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
     
     elif type == 'wassdistforward.npy':
         dir = Path(dataset_config.get('dir', './data')) / datasetname / 'diffusedqstates'
-        filename = f"wassdistforward_{datasetname}_schedule{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
+        filename = f"wassdistforward_{datasetname}_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}.npy"
 
     else:
         if modeltype == 'MSQDDPM':
