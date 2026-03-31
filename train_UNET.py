@@ -53,12 +53,12 @@ class UNetTrainer():
         self.model = UNet1DModel(sample_size=self.n_features, **self.config['model']['unet_config']).to(self.device)
 
     def _get_loss_fn(self):
-        # from src.QDDPM_torch_angel import WassDistance, sinkhornDistance, maximum_mean_discrepancy
+        from src.QDDPM_torch_angel import WassDistance, sinkhornDistance
         loss_type = self.config['training'].get('loss_fn', 'wass')
         if loss_type == 'sinkhorn':
             return NotImplementedError('Loss function {loss_type} not implemented.')
         elif loss_type == 'wass':
-            return NotImplementedError('Loss function {loss_type} not implemented.')
+            return WassDistance
         elif loss_type == 'mse':
             return torch.nn.MSELoss()
         elif loss_type == 'mse_and_norm':
@@ -182,9 +182,10 @@ class UNetTrainer():
             # Normalize
             norms = torch.sqrt(torch.pow(pred, 2).sum(dim=1).sum(dim=1))
             pred = pred / norms.reshape(pred.shape[0], 1, 1)
-            
 
-            loss, mse_term, norm_term = lossfn(pred, noisy_states, return_terms=True)
+            pred_complex = pred[:,0,:] + 1j*pred[:,1,:]
+            true_complex = noisy_states[:,0,:] + 1j*noisy_states[:,1,:]
+            loss = lossfn(pred_complex, true_complex)
 
             loss_value = loss.detach().cpu()
             loss.backward()
@@ -208,8 +209,8 @@ class UNetTrainer():
             writer.add_scalar('Loss/train', loss_value, epoch)
             writer.add_scalar('Learning Rate', lr_scheduler.get_last_lr()[0], epoch)
             writer.add_scalar('Average norm before hardcoding', norms.mean(), epoch)
-            writer.add_scalar('Loss_mse', mse_term, epoch)
-            writer.add_scalar('Loss_norm', norm_term, epoch)
+            # writer.add_scalar('Loss_mse', mse_term, epoch)
+            # writer.add_scalar('Loss_norm', norm_term, epoch)
         self._save_last_checkpoint(optimizer, lr_scheduler, epoch, final_loss=loss_value, best_loss=best_loss)
         writer.flush()
 

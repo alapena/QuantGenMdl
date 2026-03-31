@@ -33,19 +33,21 @@ training:
   overwrite_saves: False
   batch_size: null # If null, it will be set to the size of the training dataset
   n_epochs: 5000
-  learning_rate: 0.001
+  learning_rate: 0.00001
   lr_scheduler: 
-    type: 'LinearLR' # 'CosineAnnealingWarmRestarts', 'ctt',
+    type: 'OneCycleLR' # 'CosineAnnealingWarmRestarts', 'ctt',
+    # T_0: 100
+    # T_mult: 2
     start_factor: 1
-    end_factor: 0.01
+    end_factor: 0.0001
     total_iters: 1000
   regularization: 0.03
   # live_plot:
   #   save: True
   #   frequency: 50
-  loss_fn: 'mse' # 'sinkhorn', 'wass', 'mmd', 'mse'
-  loss_fn_kwargs:
-    lamd: 0.01
+  loss_fn: 'wass' # 'sinkhorn', 'wass', 'mmd', 'mse', 'mse_and_norm'
+  # loss_fn_kwargs:
+  #   lambd: 0.1
 dataset:
   dir: 'results_UNet' # Directory to store the dataset
   name: 'MNIST_1' # e.g. 'MNIST_0', 'CIRCLEY_3'
