@@ -278,7 +278,7 @@ def get_dataset(config, verbose=True):
 
         return res.astype(np.complex64)
     
-    def _ndim_cluster0Gen(n_data, n_qubits, depolarizing_param, epsilon, seed=None):
+    def _ndim_cluster0Gen(n_data, n_qubits, epsilon, seed=None):
         np.random.seed(seed)
         states0 = np.zeros((n_data, 2**n_qubits), dtype=np.complex64)
         states0[:, 0] = 1.
@@ -335,7 +335,7 @@ def get_dataset(config, verbose=True):
             size = dataset_config['maxsize']
             size = size if size is not None else 60000
             n_qubits = parts[1]
-            dataset = _ndim_cluster0Gen(size, int(n_qubits), depolarizing_param= 0, epsilon=0.08, seed=seed)
+            dataset = _ndim_cluster0Gen(size, int(n_qubits), epsilon=0.08, seed=seed)
 
     else:
         raise NotImplementedError(f"Dataset type {type} not implemented.")

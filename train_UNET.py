@@ -23,15 +23,15 @@ def main():
 
     n_data = config['dataset']['maxsize'] # EDITABLE
     n_timesteps = config['model']['n_timesteps'] # EDITABLE
-    # n_qubits = int(config['dataset']['name'].split('_')[1])
-    n_features = config['dataset']['transforms']['resize']**2 # EDITABLE
+    n_qubits = int(config['dataset']['name'].split('_')[1])
+    n_features = 2**n_qubits#config['dataset']['transforms']['resize']**2 # EDITABLE
     
     # values = [2,3,4,5,6,7,8]
     # for i, value in enumerate(values):
         # print(f"---TRAINING WITH n_ancilla_qubits={value}---")
         # config["model"]["n_ancilla_qubits"] = value
 
-    trainer = UNetTrainer(config, n_data, n_features, n_timesteps, device=device)
+    trainer = MLPTrainer(config, n_data, n_features, n_timesteps, device=device)
     trainer.training_loop()
 
 
@@ -53,8 +53,22 @@ class UNetTrainer():
         self.batch_size = self.config['training']['batch_size']
         self.batch_size = self.batch_size if self.batch_size is not None else self.n_data
 
-        self.model = UNet1DModel(sample_size=self.n_features, **self.config['model']['unet_config']).to(self.device)
+        self.model = self._get_model().to(self.device)
 
+    def _get_model(self):
+        model_type = self.config['model']['type']
+        if model_type == 'MLP':
+            return MLP(
+                input_dim=self.config['model']['input_dim'],
+                n_hidden_layers=self.config['model']['n_hidden_layers'],
+                hidden_dim=self.config['model']['hidden_dim'],
+                output_dim=self.config['model']['output_dim']
+            )
+        elif model_type == 'UNet':
+            return UNet1DModel(sample_size=self.n_features, **self.config['model']['unet_config'])
+        else:
+            raise NotImplementedError(f"Model type {model_type} not implemented.")
+        
     def _get_loss_fn(self):
         from src.QDDPM_torch_angel import WassDistance, sinkhornDistance
         loss_type = self.config['training'].get('loss_fn', 'wass')
@@ -110,7 +124,7 @@ class UNetTrainer():
             sched2.base_lrs = [kwargs1['eta_min']]
             return torch.optim.lr_scheduler.SequentialLR(self.optimizer, schedulers=[sched1, sched2], milestones=[kwargs1['T_max']])
         elif config_lr_scheduler['type'] == 'ctt':
-            return NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
+            return partial(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=self.n_epochs, eta_min=self.learning_rate)
         else:
             raise NotImplementedError(f"Learning rate scheduler {config_lr_scheduler['type']} not implemented.")
 
@@ -209,7 +223,7 @@ class UNetTrainer():
                 optimizer.zero_grad()
 
                 timesteps = torch.randint(
-                    0, self.n_timesteps, (self.batch_size,), generator=generator, device=inputs_last_timestep.device,
+                    1, self.n_timesteps+1, (self.batch_size,), generator=generator, device=inputs_last_timestep.device,
                     dtype=torch.int64
                 )
                 batch_indices = torch.arange(self.batch_size)
@@ -255,21 +269,6 @@ class UNetTrainer():
         writer.flush()
 
 
-class MLP(torch.nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super().__init__()
-        self.mlp = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, hidden_dim),
-            torch.nn.Sigmoid(),
-            torch.nn.Linear(hidden_dim, output_dim)
-        )
-
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-
 def mse_and_norm_loss(pred, true, lambd=0.01, return_terms=False):
     mse = torch.nn.MSELoss()
 
@@ -290,6 +289,119 @@ def quantum_mean_infidelity(pred, true):
     fidelity = inner_product.abs().pow(2)
     infidelity = 1 - fidelity
     return infidelity.mean()
+
+def complex_to_interleaved_real(z):
+    return torch.stack([z.real, z.imag], dim=-1).view(*z.shape[:-1], -1)
+
+def interleaved_real_to_complex(z):
+    z = z.view(*z.shape[:-1], -1, 2)
+    return torch.complex(z[..., 0], z[..., 1])
+
+
+class MLP(torch.nn.Module):
+    def __init__(self, input_dim, n_hidden_layers, hidden_dim, output_dim):
+        super().__init__()
+        layers = []
+        for _ in range(n_hidden_layers):
+            layers.append(torch.nn.Linear(input_dim, hidden_dim))
+            layers.append(torch.nn.Sigmoid())
+            input_dim = hidden_dim
+        layers.append(torch.nn.Linear(input_dim, output_dim))
+        self.mlp = torch.nn.Sequential(*layers)
+
+    def forward(self, x, t):
+        x_input = torch.cat([x, t.unsqueeze(-1).float()], dim=-1)
+        return self.mlp(x_input)
+    
+class MLPTrainer(UNetTrainer):
+    def __init__(self, config, n_data, n_features, n_timesteps, device='cpu'):
+        super().__init__(config, n_data, n_features, n_timesteps, device=device)
+    
+    def training_loop(self):
+        self._save_config()
+        self._generate_diffusedstates()
+        dir, filename = self.get_path(type='tensorboard_logs')
+        writer = SummaryWriter(log_dir=dir)
+        optimizer = self._get_optimizer()
+        self.optimizer = optimizer
+        # lr_scheduler = self._get_lr_scheduler()
+        lr_scheduler = self._get_lr_scheduler()(optimizer)
+        lossfn = self._get_loss_fn()
+        dir, filename = self.get_path(type='diffusedqstates.npy')
+        targets = torch.from_numpy(np.load(dir/filename)).to(self.device) # [T+1, n_data, n_features (complex)]
+        targets_interleaved = complex_to_interleaved_real(targets) # [T+1, n_data, n_features (real*2)]
+        targets_interleaved = targets_interleaved.permute(1, 0, 2) # [n_data, T+1, n_features*2]
+
+        inputs_last_timestep = targets_interleaved[:,-1] # The most diffused states as inputs
+        train_dataloader = torch.utils.data.DataLoader(targets_interleaved, batch_size=self.batch_size, shuffle=True)
+
+        last_save = 0
+        best_loss = float('inf')
+        generator = torch.Generator(device=self.device).manual_seed(self.seed)
+        global_step = 0
+        pbar = tqdm(range(self.n_epochs))
+        self.model.train()
+        for epoch in pbar:
+            pbar.set_description(f"Epoch {epoch}/{self.n_epochs}")
+            epoch_loss_sum = 0.0
+            for batch in train_dataloader:
+                batch = batch.to(self.device) # [n_data, T+1, n_features*2]
+                optimizer.zero_grad()
+
+                timesteps = torch.randint(
+                    1, self.n_timesteps+1, (self.batch_size,), generator=generator, device=batch.device,
+                    dtype=torch.int64
+                )
+                batch_indices = torch.arange(self.batch_size)
+                # indexs = torch.randint(0, self.n_data, (self.batch_size,), generator=generator, device=inputs_last_timestep.device)
+                noisy_states = batch[batch_indices, timesteps, :] # [n_data, n_features]
+
+                pred = self.model(noisy_states, timesteps) # [n_data, 2*n_features]
+                pred = interleaved_real_to_complex(pred) # [n_data, n_features] complex tensor
+                # Normalize
+                norms = torch.linalg.norm(pred, dim=1, keepdim=True)
+                pred = pred / norms
+                # norms = torch.sqrt(torch.pow(pred, 2).sum(dim=1).sum(dim=1))
+                # pred = pred / norms.reshape(pred.shape[0], 1, 1)
+
+                # pred_complex = pred[:,0,:] + 1j*pred[:,1,:] # [n_data, n_features] complex tensor
+                # true_complex = noisy_states[:,0,:] + 1j*noisy_states[:,1,:]
+
+                timesteps_true = timesteps-1
+                true = batch[batch_indices, timesteps_true,:]
+                true = interleaved_real_to_complex(true)
+                loss = lossfn(pred, true)
+                loss_value = loss.detach().cpu()
+                epoch_loss_sum += loss_value
+
+                loss.backward()
+                optimizer.step()
+
+                # Save and plot stats
+                writer.add_scalar('Loss/train_step', loss_value, global_step)
+                writer.add_scalar('Average norm before hardcoding', norms.mean(), global_step)
+                # writer.add_scalar('Loss_mse', mse_term, epoch)
+                # writer.add_scalar('Loss_norm', norm_term, epoch)
+                global_step += 1
+
+            pbar.set_postfix({
+                'ℒ (loss)': f"{loss_value:.3e}",
+                '💾 (last saved)': f"{last_save}"
+            })
+
+            # Check if current step is best
+            avg_epoch_loss = epoch_loss_sum / len(train_dataloader)
+            lr_scheduler.step()
+            writer.add_scalar('Loss/train_epoch', avg_epoch_loss, epoch)
+            writer.add_scalar('Learning Rate', lr_scheduler.get_last_lr()[0], epoch)
+            if avg_epoch_loss < best_loss:
+                self._save_best_checkpoint(optimizer, lr_scheduler, epoch, best_loss)
+                last_save = epoch
+                best_loss = avg_epoch_loss
+
+        self._save_last_checkpoint(optimizer, lr_scheduler, epoch, final_loss=loss_value, best_loss=best_loss)
+        writer.flush()
+        
 
 if __name__ == "__main__":
     main()

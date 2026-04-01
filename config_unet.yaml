@@ -2,7 +2,12 @@ device: 'cuda:0' # 'cpu', 'cuda:0', 'cuda:1'
 seed: 0
 model:
   # name: 'MSQDDPM' # 'QDDPM', 'MSQDDPM'
-  n_timesteps: 40 # Number of time steps T
+  type: MLP
+  input_dim: 5 
+  n_hidden_layers: 2
+  hidden_dim: 66
+  output_dim: 4
+  n_timesteps: 20 # Number of time steps T
   'diffusion_schedule': 
     'name': 'linear'
     'slope': 1.3
@@ -28,18 +33,18 @@ model:
   #   act_fn: 'silu'
   #   norm_num_groups: 8
 training:
-  overwrite_saves: False
-  batch_size: 200 # If null, it will be set to the size of the training dataset
+  overwrite_saves: True
+  batch_size: null # If null, it will be set to the size of the training dataset
   n_epochs: 5000
   learning_rate: 0.00001 # 1e-5
   lr_scheduler: 
-    type: 'sequential_2cosine' # 'CosineAnnealingWarmRestarts', 'ctt',
-    sched1:
-      T_max: 200
-      eta_min: 0.000001 # 1e-6
-    sched2:
-      T_max: 200
-      eta_min: 0.00000001 # 1e-8
+    type: ctt # 'CosineAnnealingWarmRestarts', 'ctt',
+    # sched1:
+    #   T_max: 200
+    #   eta_min: 0.000001 # 1e-6
+    # sched2:
+    #   T_max: 200
+    #   eta_min: 0.00000001 # 1e-8
     # patience: 50
     # min_lr: 0.00000000000000000001 # 1e-20
     # T_0: 100
@@ -48,7 +53,7 @@ training:
     # end_factor: 0.00001
     # total_iters: 1000
   optimizer:
-    type: 'SOAP' # 'Adam', 'SGD', 'SOAP'
+    type: 'Adam' # 'Adam', 'SGD', 'SOAP'
   regularization: 0.03
   # live_plot:
   #   save: True
@@ -58,11 +63,11 @@ training:
     # reduction: 'sum' # 'mean', 'sum', 'none'
     # lambd: 0.1
 dataset:
-  dir: 'results_UNet' # Directory to store the dataset
-  name: 'MNIST_1' # e.g. 'MNIST_0', 'CIRCLEY_3'
-  transforms:
-    resize: 16 # nxn pixels to resize.
-  maxsize: 1000
+  dir: 'results_MLP' # Directory to store the dataset
+  name: 'CLUSTER0_1' # e.g. 'MNIST_0', 'CIRCLEY_3', 'CLUSTER0_1'
+  # transforms:
+  #   resize: 16 # nxn pixels to resize.
+  maxsize: 200
   
 
   
