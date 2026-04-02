@@ -1,4 +1,4 @@
-from src.QDDPM_torch_angel import QDDPMDiffuser
+from src.QDDPM_torch_angel import QDDPMDiffusionModel
 from src.utils import get_path, set_device, find_closest_power_of_2
 from pathlib import Path
 from tqdm import tqdm
@@ -24,7 +24,7 @@ def main():
 
     # Initialize the model
     n_timesteps, n_data = config['model']['n_timesteps'], dataset.shape[0]
-    model = QDDPMDiffuser(n_qubits, n_timesteps, n_data, device=device)
+    model = QDDPMDiffusionModel(n_qubits, n_timesteps, n_data, device=device)
 
     # Get the diffused states
     max_diffusion_weight = torch.tensor(model_config.get('max_diffusion_weight', 4.0), device=device)

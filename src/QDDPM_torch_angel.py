@@ -9,11 +9,12 @@ from torch.linalg import matrix_power
 from opt_einsum import contract
 from functools import partial
 from itertools import combinations
+from tqdm import tqdm
 
 K = tc.set_backend('pytorch')
 tc.set_dtype('complex64')
 
-class QDDPMDiffuser(nn.Module):
+class QDDPMDiffusionModel(nn.Module):
     def __init__(self, n, T, Ndata, device='cpu'):
         '''
         the diffusion quantum circuit model to scramble arbitrary set of states to Haar random states
@@ -146,6 +147,64 @@ class QDDPMDiffuser(nn.Module):
             return self.scrambleCircuit_t_from_tminus1_vmap(1, input_state, phis, gs)
         else:
             return self.scrambleCircuit_t_from_tminus1_vmap(1, input_state, phis)
+        
+    
+from src.utils import get_path, get_diffusion_weights, get_diffusion_schedule_nickname, find_closest_power_of_2
+from src.trainers.basic_trainers import QDDPMGeneratorInitialqstates
+
+class QDDPMDiffuser(QDDPMDiffusionModel):
+    def __init__(self, config, n_data, n_timesteps, n_features, device='cpu'):
+        self.config = config
+        self.device = device
+        self.n_data = n_data
+        self.n_timesteps = n_timesteps
+        self.n_features = n_features
+        self.diffusion_schedule_nickname = get_diffusion_schedule_nickname(config)
+        _, self.n_qubits = find_closest_power_of_2(n_features, return_power=True)
+        super().__init__(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
+
+        self.get_path_partial = partial(get_path, config, modeltype='MLP', diffusion_schedule_nickname=self.diffusion_schedule_nickname, n_data=n_data, n_features=n_features, n_qubits=self.n_qubits, n_timesteps=n_timesteps)
+
+
+    def diffuse(self):
+        n_data, n_timesteps, n_features, diffusion_schedule_nickname = self.n_data, self.n_timesteps, self.n_features, self.diffusion_schedule_nickname
+        _, n_qubits = find_closest_power_of_2(n_features, return_power=True)
+
+        # Check if initial states exist
+        dir, filename = get_path(self.config, type='initialqstates.npy', n_data=n_data, n_features=n_features, n_qubits=n_qubits)
+        path = dir/filename
+        if not path.exists() or True:
+            # Generate initial states
+            print("Initial quantum states not found. Generating them...")
+            generator_initialqstates = QDDPMGeneratorInitialqstates(self.config)
+            generator_initialqstates.generate_initialqstates()
+
+        # Everything checked. Diffuse.
+        diffuser = QDDPMDiffuser(config=self.config, n_data=n_data, n_timesteps=n_timesteps, n_features=n_features, device=self.device)
+        diffusion_weights = get_diffusion_weights(self.config, device=self.device)
+        states_diffused = torch.zeros((n_timesteps+1, n_data, n_features), dtype=torch.complex64, device=self.device)
+        dir, filename = get_path(self.config, type='initialqstates.npy', n_data=n_data, n_features=n_features, n_qubits=n_qubits)
+        initialqstates = torch.from_numpy(np.load(dir/filename))
+        states_diffused[0] = initialqstates
+        for t in tqdm(range(1, n_timesteps+1)):
+                    # states[t] = model.set_diffusionData_t(t, states[0], diffusion_weights[:t], seed=t)
+                    states_diffused[t] = diffuser.set_diffusionData_t_single_step(t, states_diffused[t-1], diffusion_weights[:t], seed=t)
+                    states_diffused[t] = states_diffused[t] / torch.norm(states_diffused[t], dim=1, keepdim=True) # Avoid numerical errorsdir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=diffusion_schedule_nickname, n_data=n_data, n_features=n_features, n_qubits=n_qubits, n_timesteps=n_timesteps)
+        dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule_nickname=diffusion_schedule_nickname, n_data=n_data, n_features=n_features, n_qubits=n_qubits, n_timesteps=n_timesteps)
+        np.save(dir/filename, states_diffused.cpu().numpy())
+
+    def compute_wassdist_forward(self, config=None):
+        config = self.config if config is None else config
+        dir, filename = self.get_path_partial(type='diffusedqstates.npy')
+        diffused_states = torch.from_numpy(np.load(dir / filename))
+        wass = np.zeros(self.n_timesteps+1)
+        for t in tqdm(range(self.n_timesteps+1)):
+            np.random.seed()
+            wass[t] = WassDistance(diffused_states[0], diffused_states[t]).detach().numpy()
+        dir, filename = self.get_path_partial(type='wassdistforward.npy')
+        np.save(dir / filename, wass)
+        return wass
+
 
 
 def backCircuit(input, params, n_tot, L):

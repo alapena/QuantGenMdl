@@ -1,7 +1,7 @@
 from importlib.resources import path
 
 from src.utils import get_path
-from src.trainers.basic_trainers import BasicTrainer, QDDPMDiffuser, QDDPMGeneratorInitialqstates
+from src.trainers.basic_trainers import BasicTrainer, QDDPMDiffusionModel, QDDPMGeneratorInitialqstates
 from src.MSQDDPM_angel import MSQDDPMDifusser
 from src.MSQDDPM_angel import WassDistance, sinkhornDistance
 from tqdm import tqdm
@@ -36,7 +36,7 @@ class QDDPMTrainer(BasicTrainer):
                 generator_initialqstates.generate_initialqstates()
 
             # Everything checked. Diffuse.
-            diffuser = QDDPMDiffuser(self.config, self.n_data, self.n_features, self.n_timesteps, device=self.device)
+            diffuser = QDDPMDiffusionModel(self.config, self.n_data, self.n_features, self.n_timesteps, device=self.device)
             diffuser.diffuse()
             dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=self.diffusion_schedule_nickname, n_data=self.n_data, n_features=self.n_features, n_qubits=self.n_qubits, n_timesteps=self.n_timesteps)
             return dir/filename

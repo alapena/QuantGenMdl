@@ -1,8 +1,6 @@
 from tqdm import tqdm
 
 from src.utils import get_dataset, get_diffusion_weights, get_path, find_closest_power_of_2
-from src.QDDPM_torch_angel import QDDPM, QDDPMDiffuser, WassDistance, sinkhornDistance
-from src.MSQDDPM_angel import MSQDDPM
 from src.plot import Plotter
 from functools import partial
 import numpy as np
@@ -31,13 +29,16 @@ class BasicTrainer():
     def _get_model(self):
         model = self.config['model']['name']
         if model == 'QDDPM':
+            from src.QDDPM_torch_angel import QDDPM
             self.model = QDDPM(self.n_qubits, self.n_ancilla_qubits, self.n_timesteps, self.n_backward_layers, device=self.device).to(self.device)
         elif model == 'MSQDDPM':
+            from src.MSQDDPM_angel import MSQDDPM
             self.model = MSQDDPM(self.n_qubits, self.n_ancilla_qubits, self.config['model']['n_haar_ancilla_qubits'], self.n_timesteps, self.n_backward_layers, seed=self.config['seed'], device=self.device).to(self.device)
         else:
             raise NotImplementedError("Model {model} not implemented.")
 
     def _get_loss_fn(self):
+        from src.QDDPM_torch_angel import WassDistance, sinkhornDistance
         loss_type = self.config['training'].get('loss_fn', 'wass')
         if loss_type == 'sinkhorn':
             return partial(sinkhornDistance, reg=self.config['training']['regularization'])

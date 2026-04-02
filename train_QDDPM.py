@@ -1,7 +1,7 @@
 # from src.trainers.default_trainer import MSQDDPMTrainer
 from src.utils import find_closest_power_of_2, get_diffusion_schedule_nickname, get_diffusion_weights
 from src.utils import get_path
-from src.QDDPM_torch_angel import QDDPM, QDDPMDiffuser
+from src.QDDPM_torch_angel import QDDPM, QDDPMDiffusionModel
 from src.trainers.basic_trainers import QDDPMGeneratorInitialqstates
 from src.plot import Plotter
 from functools import partial
@@ -135,7 +135,7 @@ class QDDPMTrainer():
             dir, filename = self.get_path(type='initialqstates.npy')
             dataset = torch.from_numpy(np.load(dir / filename)).to(self.device)
 
-            diffuser = QDDPMDiffuser(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
+            diffuser = QDDPMDiffusionModel(self.n_qubits, self.n_timesteps, self.n_data, device=self.device)
             diffusion_weights = get_diffusion_weights(self.config, self.device)
             states = torch.zeros((self.n_timesteps+1, self.n_data, 2**self.n_qubits), device=self.device, dtype=torch.complex64)
             states[0] = dataset

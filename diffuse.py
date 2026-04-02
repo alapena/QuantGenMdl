@@ -1,5 +1,5 @@
-from src.QDDPM_torch_angel import QDDPMDiffuser
-from src.trainers.basic_trainers import QDDPMDiffuser, QDDPMGeneratorInitialqstates
+from src.QDDPM_torch_angel import QDDPMDiffusionModel
+from src.trainers.basic_trainers import QDDPMDiffusionModel, QDDPMGeneratorInitialqstates
 from src.utils import get_path, set_device, find_closest_power_of_2
 from pathlib import Path
 from tqdm import tqdm
@@ -39,7 +39,7 @@ def main(config, n_data, n_features, n_timesteps, diffusion_schedule_nickname, o
             generator_initialqstates.generate_initialqstates()
 
         # Everything checked. Diffuse.
-        diffuser = QDDPMDiffuser(config, n_data, n_features, n_timesteps, device=device)
+        diffuser = QDDPMDiffusionModel(config, n_data, n_features, n_timesteps, device=device)
         diffuser.diffuse()
 
 if __name__ == "__main__":

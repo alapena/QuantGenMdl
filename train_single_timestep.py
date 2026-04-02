@@ -1,5 +1,5 @@
 from src.utils import get_path, find_closest_power_of_2, set_device
-from src.QDDPM_torch_angel import QDDPMDiffuser, QDDPM, WassDistance, sinkhornDistance
+from src.QDDPM_torch_angel import QDDPMDiffusionModel, QDDPM, WassDistance, sinkhornDistance
 from plotly.subplots import make_subplots
 from tqdm import tqdm
 from functools import partial

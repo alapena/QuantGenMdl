@@ -194,6 +194,8 @@ def get_path(config: Dict, type: str, modeltype: str = 'MSQDDPM', new_subfolder:
             modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_nza{kwargs['n_zero_ancilla_qubits']}_nha{kwargs['n_haar_ancilla_qubits']}_T{kwargs['n_timesteps']}_L{kwargs['n_backward_layers']}"
         elif modeltype == 'UNet':
             modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}"
+        elif modeltype == 'MLP':
+            modeldir = Path(dataset_config.get('dir', './data')) / datasetname / f"modelresults_{kwargs['diffusion_schedule_nickname']}_N{kwargs['n_data']}_M{kwargs['n_features']}_n{kwargs['n_qubits']}_T{kwargs['n_timesteps']}"
         sharedir = True
 
     if sharedir:
