@@ -192,6 +192,7 @@ class QDDPMDiffuser(QDDPMDiffusionModel):
                     states_diffused[t] = states_diffused[t] / torch.norm(states_diffused[t], dim=1, keepdim=True) # Avoid numerical errorsdir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule=diffusion_schedule_nickname, n_data=n_data, n_features=n_features, n_qubits=n_qubits, n_timesteps=n_timesteps)
         dir, filename = get_path(self.config, type='diffusedqstates.npy', diffusion_schedule_nickname=diffusion_schedule_nickname, n_data=n_data, n_features=n_features, n_qubits=n_qubits, n_timesteps=n_timesteps)
         np.save(dir/filename, states_diffused.cpu().numpy())
+        return states_diffused.cpu()
 
     def compute_wassdist_forward(self, config=None):
         config = self.config if config is None else config
