@@ -366,3 +366,17 @@ def get_n_qubits_from_data(data):
 def find_closest_power_of_2(x, return_power=False):
     a = 2 if x == 1 else 1<<(x-1).bit_length()
     return a, int(np.ceil(np.log2(a)))
+
+def get_dataset_type_and_number(config):
+    dataset_config = config["dataset"]
+    name = dataset_config["name"]
+    parts = name.split('_')
+    type = parts[0]
+    num = parts[1]
+    return type, int(num)
+
+import yaml
+def save_config(config, savedir):
+        savedir.mkdir(parents=True, exist_ok=True)
+        with open(savedir/'config.yaml', 'w') as file:
+            yaml.dump(config, file, default_flow_style=False, sort_keys=False)

@@ -21,3 +21,20 @@
     #         post_dm = dm_tensor[res, :, res, :]
     #         return post_dm / torch.trace(post_dm)
     #     return torch.vmap(get_post_measurement_dm)(inputs, m_res)
+
+
+
+    class SimpleTimeEmbedding(nn.Module):
+    def __init__(self, n_hidden_layers: int, hidden_dim_scalefactor: int, output_dim: int, activation=nn.ReLU()):
+        super().__init__()
+        input_dim, hidden_dim = 1, 2
+        layers = []
+        for _ in range(n_hidden_layers):
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(activation)
+            input_dim = hidden_dim
+            hidden_dim = hidden_dim_scalefactor * hidden_dim
+        layers.append(nn.Linear(input_dim, output_dim))
+        self.embedding = nn.Sequential(*layers)
+
+    def forward(self, t):
