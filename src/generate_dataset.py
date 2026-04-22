@@ -46,3 +46,15 @@ def ndim_cluster0Gen_rng(n_data, n_qubits, epsilon, rng=None):
     states = states0 + epsilon*c*states1
     states /= np.linalg.norm(states, axis=1, keepdims=True)
     return states
+
+def ndim_circleYGen_rng(N_data, n_qubits, rng=None):
+        # Generate a circular state in each qubit. Then tensor product them.
+        phis = rng.uniform(0, 2*np.pi, (N_data, n_qubits))
+        cos = np.cos(phis) # [N_data, n_qubits]
+        sin = np.sin(phis)
+        components = np.stack((cos, sin), axis=-1) # [N_data, n_qubits, 2]
+
+        res = components[:, 0, :] # [N_data, 2] we selected first qubit
+        for i in range(1, n_qubits):
+            res = (res[..., None] * components[:, i, None, :]).reshape(N_data, -1)
+        return res.astype(np.complex64)

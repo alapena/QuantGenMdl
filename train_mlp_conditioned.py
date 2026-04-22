@@ -124,7 +124,7 @@ def train(config, model: TimeConditionedMLP, lossfn, savedir: Path, device='cpu'
     save_interval = training_config['save_interval']
     lr = float(training_config['learning_rate'])
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=500)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=200)
     writer = SummaryWriter(log_dir=savedir/'tensorboard')
     avg_train_loss_epoch_hist = []
     avg_val_loss_epoch_hist = []
@@ -265,15 +265,16 @@ class DataGenerator():
         self.generatorfn = self._get_generatorfn()
 
     def _get_generatorfn(self):
-        from src.generate_dataset import ndim_cluster0Gen_rng
+        from src.generate_dataset import ndim_cluster0Gen_rng, ndim_circleYGen_rng
         type, num = get_dataset_type_and_number(self.config)
         generatorfns_dict = {
-            'CLUSTER0': partial(ndim_cluster0Gen_rng, self.n_data, num),
+            'CLUSTER0': partial(ndim_cluster0Gen_rng, self.n_data, num, epsilon=0.08),
+            'CIRCLEY': partial(ndim_circleYGen_rng, self.n_data, num)
         }
         return generatorfns_dict[type]
 
     def generate(self, t):
-        initial_states = self.generatorfn(epsilon=0.08, rng=self.rng)
+        initial_states = self.generatorfn(rng=self.rng)
         with torch.no_grad():
             states_diffused = torch.zeros((t+1, self.n_data, self.n_features), dtype=torch.complex64, device=self.device)
             states_diffused[0] = torch.from_numpy(initial_states).to(self.device)
