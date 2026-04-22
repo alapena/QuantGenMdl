@@ -1,4 +1,4 @@
-from src.QDDPM_torch_angel import QDDPMDiffuser
+from src.QDDPM_torch_angel import QDDPMDiffuser, WassDistance
 from src.utils import set_device, get_dataset_type_and_number, get_diffusion_weights, save_config
 from src.lossfns import quantum_mean_infidelity
 from torch import nn
@@ -102,7 +102,7 @@ def main():
     model_config = config['model']
     model_params_config, activation = model_config['params'], activation_dict[model_config['activation']]
     model = TimeConditionedMLP(**model_params_config, activation=activation).to(device)
-    lossfn = quantum_mean_infidelity
+    lossfn = WassDistance #quantum_mean_infidelity
     savedir = Path(config['savedir'])
 
     save_config(config, savedir)

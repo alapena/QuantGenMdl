@@ -352,7 +352,8 @@ def naturalDistance(Set1, Set2):
 def WassDistance(Set1, Set2):
     '''
         calculate the Wasserstein distance between two sets of quantum states
-        the cost matrix is the inter trace distance between sets S1, S2
+        the cost matrix is the inter trace distance between sets S1, S2 
+        S1.shape = S2.shape = (Ndata, 2**n)
     '''
     D = 1. - torch.abs(Set1.conj() @ Set2.T)**2.
     emt = torch.empty(0)
